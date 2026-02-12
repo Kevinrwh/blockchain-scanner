@@ -5,6 +5,9 @@ export interface Chain {
   explorerUrl: string;
   logo: string;
   color: string;
+  apiProvider?: 'etherscan_v2' | 'solscan';
+  evmChainId?: number;
+  freeTierAvailable?: boolean;
 }
 
 export interface Transaction {

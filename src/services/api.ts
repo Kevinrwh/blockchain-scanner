@@ -8,6 +8,12 @@ interface ApiResponse {
   result: any[];
 }
 
+function maskAddress(address: string): string {
+  if (!address) return '';
+  if (address.length <= 10) return '***';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
 async function fetchWithRetry(
   url: string,
   retries = 3,
@@ -59,7 +65,7 @@ async function scanSolana(
       url += `&mint=${tokenAddress}`;
     }
     
-    console.log(`Scanning ${chain.name} with URL:`, url);
+    console.log(`Scanning ${chain.name} with URL:`, url.replace(address, maskAddress(address)));
     
     const response = await fetchWithRetry(url, 3, 1000, headers);
     const data = await response.json();
@@ -129,6 +135,146 @@ async function scanSolana(
   }
 }
 
+async function scanEvm(
+  chain: Chain,
+  address: string,
+  tokenAddress?: string
+): Promise<Transaction[]> {
+  if (!chain.evmChainId) {
+    throw new Error('Missing chain ID for EVM scan');
+  }
+  
+  const apiKey = getApiKey('etherscan') || getApiKey(chain.id);
+  const apiKeyParam = apiKey ? `&apikey=${apiKey}` : '';
+  
+  // Normalize addresses to lowercase for API calls (EVM chains)
+  const normalizedAddress = address.toLowerCase();
+  const normalizedTokenAddress = tokenAddress?.toLowerCase();
+  
+  const pageSize = 100;
+  const maxPages = 20;
+  
+  const fetchPaged = async (action: 'tokentx' | 'txlist'): Promise<any[]> => {
+    const allTransactions: any[] = [];
+    
+    for (let page = 1; page <= maxPages; page++) {
+      let url = '';
+      
+      if (action === 'tokentx') {
+        if (normalizedTokenAddress) {
+          url = `${chain.apiUrl}?chainid=${chain.evmChainId}&module=account&action=tokentx&address=${normalizedAddress}&contractaddress=${normalizedTokenAddress}&page=${page}&offset=${pageSize}&startblock=0&endblock=99999999&sort=desc${apiKeyParam}`;
+        } else {
+          url = `${chain.apiUrl}?chainid=${chain.evmChainId}&module=account&action=tokentx&address=${normalizedAddress}&page=${page}&offset=${pageSize}&startblock=0&endblock=99999999&sort=desc${apiKeyParam}`;
+        }
+      } else {
+        url = `${chain.apiUrl}?chainid=${chain.evmChainId}&module=account&action=txlist&address=${normalizedAddress}&page=${page}&offset=${pageSize}&startblock=0&endblock=99999999&sort=desc${apiKeyParam}`;
+      }
+      
+      console.log(
+        `Scanning ${chain.name} ${action} page ${page} with URL:`,
+        url.replace(apiKey || '', '[API_KEY]').replace(normalizedAddress, maskAddress(normalizedAddress))
+      );
+      
+      const response = await fetchWithRetry(url);
+      const data: ApiResponse = await response.json();
+      
+      console.log(`API Response for ${chain.name} ${action} page ${page}:`, {
+        status: data.status,
+        message: data.message,
+        resultType: typeof data.result,
+        resultLength: Array.isArray(data.result) ? data.result.length : 'not array'
+      });
+      
+      if (data.status === '0') {
+        if (typeof data.result === 'string' && data.result === '0') {
+          break;
+        }
+        if (data.message === 'No transactions found' || 
+            data.message === 'No token transfers found' ||
+            data.message?.toLowerCase().includes('no transactions')) {
+          break;
+        }
+        if (data.message && !data.message.includes('No transactions')) {
+          const errorMessage =
+            data.message === 'NOTOK' && typeof data.result === 'string'
+              ? data.result
+              : data.message;
+          throw new Error(errorMessage || 'API error');
+        }
+      }
+      
+      if (!data.result || (typeof data.result === 'string' && data.result === '0')) {
+        break;
+      }
+      
+      if (!Array.isArray(data.result)) {
+        console.warn(`Unexpected result format for ${chain.name}:`, data.result);
+        break;
+      }
+      
+      const validTransactions = data.result.filter((tx: any) => tx && tx.hash);
+      allTransactions.push(...validTransactions);
+      
+      if (validTransactions.length < pageSize) {
+        break;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    return allTransactions;
+  };
+  
+  const tokenTransfers = await fetchPaged('tokentx');
+  const nativeTransfers = normalizedTokenAddress ? [] : await fetchPaged('txlist');
+  
+  const tokenMapped = tokenTransfers.map((tx: any) => {
+    const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
+    const decimals = parseInt(tx.tokenDecimal || '18', 10);
+    const amount = formatTokenAmount(tx.value || '0', decimals);
+    
+    const timestamp = parseInt(tx.timeStamp, 10);
+    return {
+      chain: chain.name,
+      hash: tx.hash,
+      timestamp,
+      date: formatDate(timestamp),
+      type: isIncoming ? 'in' : 'out',
+      from: tx.from,
+      to: tx.to,
+      amount,
+      tokenSymbol: tx.tokenSymbol || 'UNKNOWN',
+      tokenAddress: tx.contractAddress,
+      tokenDecimals: decimals,
+      blockNumber: tx.blockNumber
+    } as Transaction;
+  });
+  
+  const nativeMapped = nativeTransfers.map((tx: any) => {
+    const to = tx.to || '';
+    const isIncoming = to.toLowerCase() === address.toLowerCase();
+    const amount = formatTokenAmount(tx.value || '0', 18);
+    
+    const timestamp = parseInt(tx.timeStamp, 10);
+    return {
+      chain: chain.name,
+      hash: tx.hash,
+      timestamp,
+      date: formatDate(timestamp),
+      type: isIncoming ? 'in' : 'out',
+      from: tx.from,
+      to,
+      amount,
+      tokenSymbol: 'NATIVE',
+      tokenAddress: '',
+      tokenDecimals: 18,
+      blockNumber: tx.blockNumber
+    } as Transaction;
+  });
+  
+  return [...tokenMapped, ...nativeMapped];
+}
+
 export async function scanChain(
   chain: Chain,
   address: string,
@@ -139,91 +285,8 @@ export async function scanChain(
     return scanSolana(chain, address, tokenAddress);
   }
   
-  const apiKey = getApiKey(chain.id);
-  const apiKeyParam = apiKey ? `&apikey=${apiKey}` : '';
-  
-  // Normalize addresses to lowercase for API calls (EVM chains)
-  const normalizedAddress = address.toLowerCase();
-  const normalizedTokenAddress = tokenAddress?.toLowerCase();
-  
-  // Build API URL based on chain
-  let url = '';
-  
-  if (normalizedTokenAddress) {
-    // Get token transfers for specific token
-    url = `${chain.apiUrl}?module=account&action=tokentx&address=${normalizedAddress}&contractaddress=${normalizedTokenAddress}&startblock=0&endblock=99999999&sort=desc${apiKeyParam}`;
-  } else {
-    // Get all token transfers
-    url = `${chain.apiUrl}?module=account&action=tokentx&address=${normalizedAddress}&startblock=0&endblock=99999999&sort=desc${apiKeyParam}`;
-  }
-  
-  console.log(`Scanning ${chain.name} with URL:`, url.replace(apiKey || '', '[API_KEY]'));
-  
   try {
-    const response = await fetchWithRetry(url);
-    const data: ApiResponse = await response.json();
-    
-    // Log API response for debugging
-    console.log(`API Response for ${chain.name}:`, {
-      status: data.status,
-      message: data.message,
-      resultType: typeof data.result,
-      resultLength: Array.isArray(data.result) ? data.result.length : 'not array'
-    });
-    
-    // Handle different response formats
-    if (data.status === '0') {
-      // Check if result is a string (some APIs return "0" as string when no results)
-      if (typeof data.result === 'string' && data.result === '0') {
-        return [];
-      }
-      // Check if message indicates no results
-      if (data.message === 'No transactions found' || 
-          data.message === 'No token transfers found' ||
-          data.message?.toLowerCase().includes('no transactions')) {
-        return [];
-      }
-      // Other errors
-      if (data.message && !data.message.includes('No transactions')) {
-        throw new Error(data.message || 'API error');
-      }
-    }
-    
-    // Handle case where result might be a string "0" or empty
-    if (!data.result || (typeof data.result === 'string' && data.result === '0')) {
-      return [];
-    }
-    
-    // Ensure result is an array
-    if (!Array.isArray(data.result)) {
-      console.warn(`Unexpected result format for ${chain.name}:`, data.result);
-      return [];
-    }
-    
-    // Filter out any invalid transactions
-    const validTransactions = data.result.filter((tx: any) => tx && tx.hash);
-    
-    return validTransactions.map((tx: any) => {
-      const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
-      const decimals = parseInt(tx.tokenDecimal || '18', 10);
-      const amount = formatTokenAmount(tx.value || '0', decimals);
-      
-      const timestamp = parseInt(tx.timeStamp, 10);
-      return {
-        chain: chain.name,
-        hash: tx.hash,
-        timestamp,
-        date: formatDate(timestamp),
-        type: isIncoming ? 'in' : 'out',
-        from: tx.from,
-        to: tx.to,
-        amount,
-        tokenSymbol: tx.tokenSymbol || 'UNKNOWN',
-        tokenAddress: tx.contractAddress,
-        tokenDecimals: decimals,
-        blockNumber: tx.blockNumber
-      } as Transaction;
-    });
+    return await scanEvm(chain, address, tokenAddress);
   } catch (error) {
     console.error(`Error scanning ${chain.name}:`, error);
     throw error;

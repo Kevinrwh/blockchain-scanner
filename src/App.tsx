@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Transaction, ChainScanStatus } from './types';
-import { CHAINS } from './config/chains';
+import { CHAINS, getChainById } from './config/chains';
 import { isValidEthereumAddress, isValidSolanaAddress, isValidAddress } from './utils/address';
 import { scanMultipleChains } from './services/api';
 import { exportToCSV } from './utils/format';
@@ -14,16 +14,32 @@ import { LoadingSkeleton } from './components/LoadingSkeleton';
 function App() {
   const [walletAddress, setWalletAddress] = useState('');
   const [tokenAddress, setTokenAddress] = useState('');
-  const [selectedChains, setSelectedChains] = useState<string[]>(CHAINS.map(c => c.id));
+  const [selectedChains, setSelectedChains] = useState<string[]>(
+    CHAINS.filter(c => c.id !== 'solana' && c.freeTierAvailable !== false).map(c => c.id)
+  );
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [scanStatuses, setScanStatuses] = useState<Map<string, ChainScanStatus>>(new Map());
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isApiKeyManagerOpen, setIsApiKeyManagerOpen] = useState(false);
+  const [skipPaidChains, setSkipPaidChains] = useState(true);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('darkMode') === 'true' || 
            (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
+  
+  const chainsWithHits = Array.from(scanStatuses.values())
+    .filter(status => status.transactionCount > 0)
+    .map(status => getChainById(status.chainId)?.name || status.chainId);
+  
+  const chainsWithErrors = Array.from(scanStatuses.values())
+    .filter(status => status.status === 'error' && status.error)
+    .map(status => ({
+      chain: getChainById(status.chainId)?.name || status.chainId,
+      error: status.error as string
+    }));
+  
+  const paidTierChains = CHAINS.filter(chain => chain.freeTierAvailable === false);
   
   useEffect(() => {
     if (darkMode) {
@@ -50,25 +66,26 @@ function App() {
     
     // Validate address based on selected chains
     const chainsToScan = CHAINS.filter(c => selectedChains.includes(c.id));
-    const hasSolana = chainsToScan.some(c => c.id === 'solana');
-    const hasEVM = chainsToScan.some(c => c.id !== 'solana');
+    const paidChainsSelected = chainsToScan.filter(c => c.freeTierAvailable === false);
+    const effectiveChainsToScan = skipPaidChains
+      ? chainsToScan.filter(c => c.freeTierAvailable !== false)
+      : chainsToScan;
+    const hasSolana = effectiveChainsToScan.some(c => c.id === 'solana');
+    const hasEVM = effectiveChainsToScan.some(c => c.id !== 'solana');
+    const isEvmAddress = isValidEthereumAddress(walletAddress);
+    const isSolAddress = isValidSolanaAddress(walletAddress);
     
-    if (hasEVM && !isValidEthereumAddress(walletAddress)) {
-      setError('Please enter a valid Ethereum address (0x...)');
-      return;
-    }
-    
-    if (hasSolana && !isValidSolanaAddress(walletAddress)) {
-      setError('Please enter a valid Solana address');
-      return;
-    }
-    
-    // If both types selected, validate for both
     if (hasEVM && hasSolana) {
-      if (!isValidEthereumAddress(walletAddress) && !isValidSolanaAddress(walletAddress)) {
+      if (!isEvmAddress && !isSolAddress) {
         setError('Please enter a valid Ethereum (0x...) or Solana address');
         return;
       }
+    } else if (hasEVM && !isEvmAddress) {
+      setError('Please enter a valid Ethereum address (0x...)');
+      return;
+    } else if (hasSolana && !isSolAddress) {
+      setError('Please enter a valid Solana address');
+      return;
     }
     
     if (selectedChains.length === 0) {
@@ -81,11 +98,38 @@ function App() {
     setTransactions([]);
     
     const statuses = new Map<string, ChainScanStatus>();
+    const compatibleChains = effectiveChainsToScan.filter(chain =>
+      chain.id === 'solana' ? isSolAddress : isEvmAddress
+    );
+    const incompatibleChains = chainsToScan.filter(chain =>
+      chain.id === 'solana' ? !isSolAddress : !isEvmAddress
+    );
+    const skippedPaidChains = skipPaidChains ? paidChainsSelected : [];
     
-    chainsToScan.forEach(chain => {
+    compatibleChains.forEach(chain => {
       statuses.set(chain.id, {
         chainId: chain.id,
         status: 'scanning',
+        transactionCount: 0
+      });
+    });
+    
+    incompatibleChains.forEach(chain => {
+      statuses.set(chain.id, {
+        chainId: chain.id,
+        status: 'error',
+        error: chain.id === 'solana'
+          ? 'Solana requires a Solana address'
+          : 'EVM chain requires a 0x address',
+        transactionCount: 0
+      });
+    });
+    
+    skippedPaidChains.forEach(chain => {
+      statuses.set(chain.id, {
+        chainId: chain.id,
+        status: 'error',
+        error: 'Requires paid Etherscan tier',
         transactionCount: 0
       });
     });
@@ -94,7 +138,7 @@ function App() {
     
     try {
       const results = await scanMultipleChains(
-        chainsToScan,
+        compatibleChains,
         walletAddress,
         tokenAddress || undefined
       );
@@ -186,6 +230,22 @@ function App() {
               onToggle={toggleChain}
             />
             
+            {paidTierChains.length > 0 && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-lg text-sm">
+                Free tier still requires a free Etherscan API key. Paid-tier chains require a paid plan: {paidTierChains.map(c => c.name).join(', ')}.
+              </div>
+            )}
+            
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={skipPaidChains}
+                onChange={(e) => setSkipPaidChains(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              Skip paid-tier chains when scanning
+            </label>
+            
             {error && (
               <div className="p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-lg">
                 {error}
@@ -202,10 +262,10 @@ function App() {
           </div>
         </div>
         
-        {isScanning && (
+        {(isScanning || scanStatuses.size > 0) && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-              Scan Progress
+              {isScanning ? 'Scan Progress' : 'Scan Results'}
             </h2>
             <div className="space-y-2">
               {Array.from(scanStatuses.values()).map(status => (
@@ -217,6 +277,36 @@ function App() {
         
         {transactions.length > 0 && (
           <>
+            <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Chains With Hits
+              </h2>
+              {chainsWithHits.length > 0 ? (
+                <p className="text-gray-700 dark:text-gray-300">
+                  {chainsWithHits.join(', ')}
+                </p>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400">
+                  No chains returned transactions in this scan.
+                </p>
+              )}
+            </div>
+            
+            {chainsWithErrors.length > 0 && (
+              <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Chains With Errors
+                </h2>
+                <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                  {chainsWithErrors.map(item => (
+                    <li key={item.chain} className="flex items-start justify-between gap-3">
+                      <span className="font-medium">{item.chain}</span>
+                      <span className="text-gray-500 dark:text-gray-400">{item.error}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mb-6">
               <Summary transactions={transactions} />
             </div>

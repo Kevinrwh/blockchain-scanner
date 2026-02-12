@@ -1,4 +1,3 @@
-import type { Chain } from '../types';
 import { CHAINS } from '../config/chains';
 
 interface ChainSelectorProps {
@@ -28,6 +27,11 @@ export function ChainSelector({ selectedChains, onToggle }: ChainSelectorProps) 
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {chain.name}
             </span>
+            {chain.freeTierAvailable === false && (
+              <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                Paid
+              </span>
+            )}
           </label>
         ))}
       </div>
