@@ -1,5 +1,7 @@
 import { CHAINS } from '../config/chains';
 
+const EVM_CHAINS = CHAINS.filter(c => c.id !== 'solana');
+
 interface ChainSelectorProps {
   selectedChains: string[];
   onToggle: (chainId: string) => void;
@@ -7,33 +9,31 @@ interface ChainSelectorProps {
 
 export function ChainSelector({ selectedChains, onToggle }: ChainSelectorProps) {
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        Select Chains to Scan
-      </label>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {CHAINS.map((chain) => (
-          <label
-            key={chain.id}
-            className="flex items-center space-x-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          >
-            <input
-              type="checkbox"
-              checked={selectedChains.includes(chain.id)}
-              onChange={() => onToggle(chain.id)}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-            />
-            <span className="text-lg">{chain.logo}</span>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {chain.name}
-            </span>
-            {chain.freeTierAvailable === false && (
-              <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
-                Paid
-              </span>
-            )}
-          </label>
-        ))}
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {EVM_CHAINS.map((chain) => {
+          const selected = selectedChains.includes(chain.id);
+          return (
+            <button
+              key={chain.id}
+              type="button"
+              onClick={() => onToggle(chain.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                selected
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300'
+                  : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+              }`}
+            >
+              <span>{chain.logo}</span>
+              <span>{chain.name}</span>
+              {chain.freeTierAvailable === false && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+                  Paid
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

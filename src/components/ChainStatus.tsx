@@ -7,54 +7,38 @@ interface ChainStatusProps {
 
 export function ChainStatus({ status }: ChainStatusProps) {
   const chain = getChainById(status.chainId);
-  
   if (!chain) return null;
-  
-  const getStatusColor = () => {
-    switch (status.status) {
-      case 'scanning':
-        return 'text-blue-500';
-      case 'success':
-        return 'text-green-500';
-      case 'error':
-        return 'text-red-500';
-      default:
-        return 'text-gray-500';
-    }
-  };
-  
-  const getStatusIcon = () => {
-    switch (status.status) {
-      case 'scanning':
-        return '⏳';
-      case 'success':
-        return '✓';
-      case 'error':
-        return '✗';
-      default:
-        return '○';
-    }
-  };
-  
+
+  const isScanning = status.status === 'scanning';
+  const isSuccess = status.status === 'success';
+  const isError = status.status === 'error';
+
   return (
-    <div className="flex items-center justify-between p-2 border rounded-lg">
-      <div className="flex items-center space-x-2">
-        <span className="text-lg">{chain.logo}</span>
-        <span className="font-medium text-gray-700 dark:text-gray-300">
-          {chain.name}
-        </span>
+    <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+      <div className="flex items-center gap-2.5">
+        <span className="text-base">{chain.logo}</span>
+        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{chain.name}</span>
       </div>
-      <div className="flex items-center space-x-2">
-        {status.status === 'scanning' && (
-          <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+
+      <div className="flex items-center gap-2">
+        {isScanning && (
+          <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
         )}
-        <span className={`text-sm ${getStatusColor()}`}>
-          {getStatusIcon()} {status.transactionCount} txns
+        <span className={`text-xs font-medium ${
+          isScanning ? 'text-indigo-500 dark:text-indigo-400' :
+          isSuccess  ? 'text-emerald-600 dark:text-emerald-400' :
+          isError    ? 'text-rose-500 dark:text-rose-400' :
+                       'text-zinc-400'
+        }`}>
+          {isScanning ? 'Scanning...' :
+           isSuccess  ? `${status.transactionCount} txns` :
+           isError    ? '0 txns' : '—'}
         </span>
-        {status.error && (
+
+        {isError && status.error && (
           <div className="group relative">
-            <span className="text-xs text-red-500 cursor-help">⚠</span>
-            <div className="absolute right-0 top-full mt-1 w-64 p-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+            <span className="text-xs text-amber-500 cursor-help select-none">⚠</span>
+            <div className="absolute right-0 top-full mt-1 w-56 p-2.5 bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none leading-relaxed">
               {status.error}
             </div>
           </div>

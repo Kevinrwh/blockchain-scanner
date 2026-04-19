@@ -10,227 +10,228 @@ import { TransactionTable } from './components/TransactionTable';
 import { Summary } from './components/Summary';
 import { ApiKeyManager } from './components/ApiKeyManager';
 
+const EVM_CHAINS = CHAINS.filter(c => c.id !== 'solana');
+const SOLANA_CHAIN = CHAINS.find(c => c.id === 'solana')!;
+
 function App() {
-  const [walletAddress, setWalletAddress] = useState('');
-  const [tokenAddress, setTokenAddress] = useState('');
+  const [evmAddress, setEvmAddress] = useState('');
+  const [solanaAddress, setSolanaAddress] = useState('');
   const [selectedChains, setSelectedChains] = useState<string[]>(
-    CHAINS.filter(c => c.freeTierAvailable === true).map(c => c.id)
+    EVM_CHAINS.filter(c => c.freeTierAvailable === true).map(c => c.id)
   );
+  const [tokenAddress, setTokenAddress] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [scanStatuses, setScanStatuses] = useState<Map<string, ChainScanStatus>>(new Map());
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isApiKeyManagerOpen, setIsApiKeyManagerOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('darkMode') === 'true' || 
-           (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const stored = localStorage.getItem('darkMode');
+    return stored !== null ? stored === 'true' : true;
   });
-  
+
   const chainsWithHits = Array.from(scanStatuses.values())
-    .filter(status => status.transactionCount > 0)
-    .map(status => getChainById(status.chainId)?.name || status.chainId);
-  
+    .filter(s => s.transactionCount > 0)
+    .map(s => getChainById(s.chainId)?.name || s.chainId);
+
   const chainsWithErrors = Array.from(scanStatuses.values())
-    .filter(status => status.status === 'error' && status.error)
-    .map(status => ({
-      chain: getChainById(status.chainId)?.name || status.chainId,
-      error: status.error as string
-    }));
-  
+    .filter(s => s.status === 'error' && s.error)
+    .map(s => ({ chain: getChainById(s.chainId)?.name || s.chainId, error: s.error as string }));
+
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle('dark', darkMode);
     localStorage.setItem('darkMode', darkMode.toString());
   }, [darkMode]);
-  
+
   const toggleChain = (chainId: string) => {
     setSelectedChains(prev =>
-      prev.includes(chainId)
-        ? prev.filter(id => id !== chainId)
-        : [...prev, chainId]
+      prev.includes(chainId) ? prev.filter(id => id !== chainId) : [...prev, chainId]
     );
   };
-  
+
   const handleScan = async () => {
-    if (!walletAddress) {
-      setError('Please enter a wallet address');
+    const hasEvm = evmAddress.trim().length > 0;
+    const hasSolana = solanaAddress.trim().length > 0;
+
+    if (!hasEvm && !hasSolana) {
+      setError('Enter at least one wallet address');
       return;
     }
-    
-    // Validate address based on selected chains
-    const chainsToScan = CHAINS.filter(c => selectedChains.includes(c.id));
-    const hasSolana = chainsToScan.some(c => c.id === 'solana');
-    const hasEVM = chainsToScan.some(c => c.id !== 'solana');
-    const isEvmAddress = isValidEthereumAddress(walletAddress);
-    const isSolAddress = isValidSolanaAddress(walletAddress);
-    
-    if (hasEVM && hasSolana) {
-      if (!isEvmAddress && !isSolAddress) {
-        setError('Please enter a valid Ethereum (0x...) or Solana address');
-        return;
-      }
-    } else if (hasEVM && !isEvmAddress) {
-      setError('Please enter a valid Ethereum address (0x...)');
-      return;
-    } else if (hasSolana && !isSolAddress) {
-      setError('Please enter a valid Solana address');
+    if (hasEvm && !isValidEthereumAddress(evmAddress)) {
+      setError('EVM address must start with 0x and be 42 characters');
       return;
     }
-    
-    if (selectedChains.length === 0) {
-      setError('Please select at least one chain');
+    if (hasSolana && !isValidSolanaAddress(solanaAddress)) {
+      setError('Invalid Solana address');
       return;
     }
-    
+    if (hasEvm && selectedChains.length === 0) {
+      setError('Select at least one EVM chain');
+      return;
+    }
+
     setError(null);
     setIsScanning(true);
     setTransactions([]);
-    
-    const statuses = new Map<string, ChainScanStatus>();
-    const compatibleChains = chainsToScan.filter(chain =>
-      chain.id === 'solana' ? isSolAddress : isEvmAddress
-    );
-    const incompatibleChains = chainsToScan.filter(chain =>
-      chain.id === 'solana' ? !isSolAddress : !isEvmAddress
-    );
 
-    compatibleChains.forEach(chain => {
+    const statuses = new Map<string, ChainScanStatus>();
+    const evmChains = hasEvm ? EVM_CHAINS.filter(c => selectedChains.includes(c.id)) : [];
+
+    evmChains.forEach(chain => {
       statuses.set(chain.id, { chainId: chain.id, status: 'scanning', transactionCount: 0 });
     });
+    if (hasSolana) {
+      statuses.set('solana', { chainId: 'solana', status: 'scanning', transactionCount: 0 });
+    }
+    setScanStatuses(new Map(statuses));
 
-    incompatibleChains.forEach(chain => {
-      statuses.set(chain.id, {
-        chainId: chain.id,
-        status: 'error',
-        error: chain.id === 'solana' ? 'Solana requires a Solana address' : 'EVM chain requires a 0x address',
-        transactionCount: 0
-      });
-    });
-
-    setScanStatuses(statuses);
-    
     try {
-      const results = await scanMultipleChains(
-        compatibleChains,
-        walletAddress,
-        tokenAddress || undefined
-      );
-      
       const allTransactions: Transaction[] = [];
       const updatedStatuses = new Map(statuses);
-      
-      results.forEach((result, chainId) => {
-        allTransactions.push(...result.transactions);
-        updatedStatuses.set(chainId, {
-          chainId,
-          status: result.error ? 'error' : 'success',
-          error: result.error || undefined,
-          transactionCount: result.transactions.length
+
+      if (hasEvm && evmChains.length > 0) {
+        const evmResults = await scanMultipleChains(evmChains, evmAddress.trim(), tokenAddress || undefined);
+        evmResults.forEach((result, chainId) => {
+          allTransactions.push(...result.transactions);
+          updatedStatuses.set(chainId, {
+            chainId,
+            status: result.error ? 'error' : 'success',
+            error: result.error || undefined,
+            transactionCount: result.transactions.length
+          });
         });
-      });
-      
+        setScanStatuses(new Map(updatedStatuses));
+      }
+
+      if (hasSolana) {
+        const solanaResults = await scanMultipleChains([SOLANA_CHAIN], solanaAddress.trim(), tokenAddress || undefined);
+        solanaResults.forEach((result, chainId) => {
+          allTransactions.push(...result.transactions);
+          updatedStatuses.set(chainId, {
+            chainId,
+            status: result.error ? 'error' : 'success',
+            error: result.error || undefined,
+            transactionCount: result.transactions.length
+          });
+        });
+        setScanStatuses(new Map(updatedStatuses));
+      }
+
       setTransactions(allTransactions);
-      setScanStatuses(updatedStatuses);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while scanning');
     } finally {
       setIsScanning(false);
     }
   };
-  
-  const handleExport = () => {
-    exportToCSV(transactions);
-  };
-  
+
+  const inputClass = 'w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
+  const labelClass = 'block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2';
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <header className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Multi-Chain EVM Transaction Scanner
-            </h1>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setIsApiKeyManagerOpen(true)}
-                className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                API Keys
-              </button>
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                {darkMode ? '☀️' : '🌙'}
-              </button>
-            </div>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors">
+      <div className="max-w-5xl mx-auto px-4 py-10">
+
+        {/* Header */}
+        <header className="flex items-center justify-between mb-10">
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">Chain Scanner</h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">Multi-chain transaction explorer</p>
           </div>
-          <p className="text-gray-600 dark:text-gray-400">
-            Scan token transactions across multiple EVM chains and Solana
-          </p>
-        </header>
-        
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Wallet Address *
-              </label>
-              <input
-                type="text"
-                value={walletAddress}
-                onChange={(e) => setWalletAddress(e.target.value)}
-                placeholder="0x..."
-                className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-mono"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Token Contract Address (Optional)
-              </label>
-              <input
-                type="text"
-                value={tokenAddress}
-                onChange={(e) => setTokenAddress(e.target.value)}
-                placeholder="0x... or Solana mint address (leave empty for all tokens)"
-                className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 font-mono"
-              />
-            </div>
-            
-            <ChainSelector
-              selectedChains={selectedChains}
-              onToggle={toggleChain}
-            />
-            
-            <div className="p-3 bg-amber-50 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-lg text-sm">
-              An Etherscan API key is required. Add yours via the API Keys button above.
-            </div>
-            
-            {error && (
-              <div className="p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-lg">
-                {error}
-              </div>
-            )}
-            
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleScan}
-              disabled={isScanning}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+              onClick={() => setIsApiKeyManagerOpen(true)}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
-              {isScanning ? 'Scanning...' : 'Scan Transactions'}
+              API Keys
+            </button>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-sm"
+            >
+              {darkMode ? '☀' : '☾'}
             </button>
           </div>
+        </header>
+
+        {/* Scan form */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 mb-4 space-y-6">
+
+          {/* EVM wallet + chain selection */}
+          <div className="space-y-3">
+            <label className={labelClass}>EVM Wallet</label>
+            <input
+              type="text"
+              value={evmAddress}
+              onChange={(e) => setEvmAddress(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleScan()}
+              placeholder="0x..."
+              className={inputClass}
+            />
+            <ChainSelector selectedChains={selectedChains} onToggle={toggleChain} />
+          </div>
+
+          <div className="border-t border-zinc-100 dark:border-zinc-800" />
+
+          {/* Solana wallet */}
+          <div>
+            <label className={labelClass}>Solana Wallet</label>
+            <input
+              type="text"
+              value={solanaAddress}
+              onChange={(e) => setSolanaAddress(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleScan()}
+              placeholder="Solana address..."
+              className={inputClass}
+            />
+          </div>
+
+          {/* Advanced toggle */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(v => !v)}
+              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
+              Advanced
+            </button>
+            {showAdvanced && (
+              <div className="mt-3 space-y-1.5">
+                <label className={labelClass}>Filter by token <span className="normal-case font-normal text-zinc-400">(optional — leave empty for all transactions)</span></label>
+                <input
+                  type="text"
+                  value={tokenAddress}
+                  onChange={(e) => setTokenAddress(e.target.value)}
+                  placeholder="Token contract address or Solana mint"
+                  className={inputClass}
+                />
+              </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="px-4 py-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={handleScan}
+            disabled={isScanning}
+            className="w-full py-3 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+          >
+            {isScanning ? 'Scanning...' : 'Scan Transactions'}
+          </button>
         </div>
-        
+
+        {/* Scan status */}
         {(isScanning || scanStatuses.size > 0) && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-              {isScanning ? 'Scan Progress' : 'Scan Results'}
-            </h2>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
+              {isScanning ? 'Scanning' : 'Results'}
+            </p>
             <div className="space-y-2">
               {Array.from(scanStatuses.values()).map(status => (
                 <ChainStatus key={status.chainId} status={status} />
@@ -238,63 +239,54 @@ function App() {
             </div>
           </div>
         )}
-        
+
+        {/* Transactions */}
         {transactions.length > 0 && (
           <>
-            <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Chains With Hits
-              </h2>
-              {chainsWithHits.length > 0 ? (
-                <p className="text-gray-700 dark:text-gray-300">
-                  {chainsWithHits.join(', ')}
-                </p>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">
-                  No chains returned transactions in this scan.
-                </p>
-              )}
-            </div>
-            
-            {chainsWithErrors.length > 0 && (
-              <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Chains With Errors
-                </h2>
-                <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                  {chainsWithErrors.map(item => (
-                    <li key={item.chain} className="flex items-start justify-between gap-3">
-                      <span className="font-medium">{item.chain}</span>
-                      <span className="text-gray-500 dark:text-gray-400">{item.error}</span>
-                    </li>
-                  ))}
-                </ul>
+            {chainsWithHits.length > 0 && (
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">Activity on:</span>
+                {chainsWithHits.map(name => (
+                  <span key={name} className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                    {name}
+                  </span>
+                ))}
               </div>
             )}
-            <div className="mb-6">
+
+            {chainsWithErrors.length > 0 && (
+              <div className="mb-4 px-4 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">Errors</p>
+                {chainsWithErrors.map(item => (
+                  <p key={item.chain} className="text-xs text-amber-700 dark:text-amber-300">
+                    <span className="font-medium">{item.chain}:</span> {item.error}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            <div className="mb-4">
               <Summary transactions={transactions} />
             </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-                Transactions ({transactions.length})
-              </h2>
-              <TransactionTable transactions={transactions} onExport={handleExport} />
+
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Transactions</p>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">{transactions.length} total</span>
+              </div>
+              <TransactionTable transactions={transactions} onExport={() => exportToCSV(transactions)} />
             </div>
           </>
         )}
-        
-        {!isScanning && transactions.length === 0 && !error && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center text-gray-500 dark:text-gray-400">
-            <p>Enter a wallet address and click "Scan Transactions" to begin</p>
+
+        {!isScanning && transactions.length === 0 && scanStatuses.size === 0 && (
+          <div className="text-center py-16 text-zinc-400 dark:text-zinc-600">
+            <p className="text-sm">Enter a wallet address above to get started</p>
           </div>
         )}
       </div>
-      
-      <ApiKeyManager
-        isOpen={isApiKeyManagerOpen}
-        onClose={() => setIsApiKeyManagerOpen(false)}
-      />
+
+      <ApiKeyManager isOpen={isApiKeyManagerOpen} onClose={() => setIsApiKeyManagerOpen(false)} />
     </div>
   );
 }
