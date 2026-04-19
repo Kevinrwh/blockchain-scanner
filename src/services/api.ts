@@ -1,6 +1,6 @@
 import type { Chain, Transaction } from '../types';
 import { getApiKey } from '../utils/storage';
-import { normalizeEvmTx, normalizeSolanaTx } from './normalize';
+import { normalizeEvmTx, normalizeHeliusTx } from './normalize';
 
 interface ApiResponse {
   status: string;
@@ -45,62 +45,37 @@ async function scanSolana(
   address: string,
   tokenAddress?: string
 ): Promise<Transaction[]> {
-  // Solana uses Solscan API which has a different structure
   const apiKey = getApiKey(chain.id);
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json'
-  };
-  
-  if (apiKey) {
-    headers['token'] = apiKey;
+  if (!apiKey) {
+    throw new Error('Helius API key required — add one via API Keys');
   }
-  
-  try {
-    // Solscan API endpoint for token transfers
-    // Note: Solscan API structure may vary, using common endpoint pattern
-    let url = `${chain.apiUrl}/account/spl-token-transfers?address=${address}&offset=0&limit=100`;
-    
-    if (tokenAddress) {
-      // Filter by token mint address
-      url += `&mint=${tokenAddress}`;
-    }
-    
-    console.log(`Scanning ${chain.name} with URL:`, url.replace(address, maskAddress(address)));
-    
-    const response = await fetchWithRetry(url, 3, 1000, headers);
+
+  const limit = 100;
+  const allTransactions: Transaction[] = [];
+  let before: string | undefined;
+
+  for (let page = 0; page < 20; page++) {
+    let url = `${chain.apiUrl}/addresses/${address}/transactions?api-key=${apiKey}&limit=${limit}`;
+    if (before) url += `&before=${before}`;
+
+    console.log(`Scanning ${chain.name} page ${page + 1}:`, url.replace(apiKey, '[API_KEY]').replace(address, maskAddress(address)));
+
+    const response = await fetchWithRetry(url, 3, 1000);
     const data = await response.json();
-    
-    console.log(`API Response for ${chain.name}:`, {
-      dataLength: Array.isArray(data) ? data.length : 'not array',
-      dataType: typeof data,
-      data: data
-    });
-    
-    // Handle different response formats
-    let transactions: any[] = [];
-    if (Array.isArray(data)) {
-      transactions = data;
-    } else if (data.data && Array.isArray(data.data)) {
-      transactions = data.data;
-    } else if (data.result && Array.isArray(data.result)) {
-      transactions = data.result;
-    } else {
-      return [];
-    }
-    
-    if (transactions.length === 0) {
-      return [];
+
+    if (!Array.isArray(data) || data.length === 0) break;
+
+    for (const tx of data) {
+      const normalized = normalizeHeliusTx(tx, chain, address, tokenAddress);
+      allTransactions.push(...normalized);
     }
 
-    const normalized = transactions
-      .map((tx: any) => normalizeSolanaTx(tx, chain, address))
-      .filter((tx: Transaction) => tx.hash);
-
-    return normalized;
-  } catch (error) {
-    console.error(`Error scanning ${chain.name}:`, error);
-    throw error;
+    if (data.length < limit) break;
+    before = data[data.length - 1].signature;
+    await new Promise(r => setTimeout(r, 200));
   }
+
+  return allTransactions.filter(tx => tx.hash);
 }
 
 async function scanEvm(

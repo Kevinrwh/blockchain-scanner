@@ -5,7 +5,7 @@ export interface Chain {
   explorerUrl: string;
   logo: string;
   color: string;
-  apiProvider?: 'etherscan_v2' | 'solscan';
+  apiProvider?: 'etherscan_v2' | 'helius';
   evmChainId?: number;
   freeTierAvailable?: boolean;
 }

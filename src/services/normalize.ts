@@ -75,35 +75,103 @@ export function normalizeEvmTx(raw: any, chain: Chain, ownerAddress?: string): T
 }
 
 export function normalizeSolanaTx(raw: any, chain: Chain, ownerAddress?: string): Transaction {
-  const dest = raw.destination || raw.dst || raw.to || '';
-  const src = raw.source || raw.src || raw.from || '';
-  const owner = ownerAddress ? ownerAddress.toLowerCase() : '';
-  const isIncoming = owner ? (String(dest).toLowerCase() === owner) : false;
+  // Solscan v2 fields: from_address, to_address, flow ('in'|'out'), token_address, amount, block_time, trans_id
+  const from = raw.from_address || raw.source || raw.src || raw.from || '';
+  const to = raw.to_address || raw.destination || raw.dst || raw.to || '';
 
-  const decimals = raw.tokenDecimals || raw.decimals || 9;
-  const amountRaw = raw.amount || raw.changeAmount || raw.quantity || '0';
+  const isIncoming = raw.flow === 'in'
+    ? true
+    : raw.flow === 'out'
+      ? false
+      : ownerAddress
+        ? String(to).toLowerCase() === ownerAddress.toLowerCase()
+        : false;
+
+  const decimals = raw.token_decimals || raw.tokenDecimals || raw.decimals || 9;
+  const amountRaw = raw.amount || raw.changeAmount || '0';
   const amount = formatTokenAmount(String(amountRaw || '0'), decimals);
-
-  const timestamp = toSeconds(raw.blockTime || raw.timestamp || raw.time || raw.unixTime);
+  const timestamp = toSeconds(raw.block_time || raw.blockTime || raw.timestamp);
 
   return {
     chain: chain.name,
-    hash: raw.signature || raw.txHash || raw.hash || '',
+    hash: raw.trans_id || raw.signature || raw.txHash || raw.hash || '',
     timestamp,
     date: formatDate(timestamp),
     type: isIncoming ? 'in' : 'out',
-    from: src,
-    to: dest,
+    from,
+    to,
     amount,
-    tokenSymbol: raw.tokenSymbol || raw.symbol || raw.tokenName || 'UNKNOWN',
-    tokenAddress: raw.mint || raw.tokenMint || '',
+    tokenSymbol: raw.token_symbol || raw.tokenSymbol || raw.symbol || 'UNKNOWN',
+    tokenAddress: raw.token_address || raw.mint || '',
     tokenDecimals: decimals,
-    blockNumber: String(raw.slot || raw.blockNumber || ''),
+    blockNumber: String(raw.slot || raw.block_id || raw.blockNumber || ''),
     valueNative: undefined,
     txType: 'transfer',
-    tokenName: raw.tokenName || undefined,
+    tokenName: raw.token_name || raw.tokenName || undefined,
     decoded: undefined
   } as Transaction;
+}
+
+export function normalizeHeliusTx(raw: any, chain: Chain, ownerAddress: string, mintFilter?: string): Transaction[] {
+  const hash = raw.signature || '';
+  const timestamp = toSeconds(raw.timestamp);
+  const date = formatDate(timestamp);
+  const slot = String(raw.slot || '');
+  const txType: Transaction['txType'] = raw.type === 'SWAP' ? 'swap' : 'transfer';
+  const results: Transaction[] = [];
+
+  // Token transfers — tokenAmount is already human-readable (Helius pre-divides by decimals)
+  const tokenTransfers: any[] = raw.tokenTransfers || [];
+  for (const t of tokenTransfers) {
+    if (mintFilter && t.mint !== mintFilter) continue;
+    const isIncoming = t.toUserAccount === ownerAddress;
+    if (t.fromUserAccount !== ownerAddress && !isIncoming) continue;
+    results.push({
+      chain: chain.name,
+      hash,
+      timestamp,
+      date,
+      type: isIncoming ? 'in' : 'out',
+      from: t.fromUserAccount || '',
+      to: t.toUserAccount || '',
+      amount: String(t.tokenAmount ?? 0),
+      tokenSymbol: t.symbol || 'UNKNOWN',
+      tokenAddress: t.mint || '',
+      tokenDecimals: t.decimals ?? 9,
+      blockNumber: slot,
+      txType,
+      tokenName: t.tokenName || undefined,
+      decoded: undefined,
+    } as Transaction);
+  }
+
+  // Native SOL transfers — only include if no token transfers matched
+  if (results.length === 0 && !mintFilter) {
+    const nativeTransfers: any[] = raw.nativeTransfers || [];
+    for (const t of nativeTransfers) {
+      const isIncoming = t.toUserAccount === ownerAddress;
+      if (t.fromUserAccount !== ownerAddress && !isIncoming) continue;
+      results.push({
+        chain: chain.name,
+        hash,
+        timestamp,
+        date,
+        type: isIncoming ? 'in' : 'out',
+        from: t.fromUserAccount || '',
+        to: t.toUserAccount || '',
+        amount: formatTokenAmount(String(t.amount || 0), 9),
+        tokenSymbol: 'SOL',
+        tokenAddress: 'So11111111111111111111111111111111111111112',
+        tokenDecimals: 9,
+        blockNumber: slot,
+        txType: 'transfer',
+        tokenName: 'Solana',
+        decoded: undefined,
+      } as Transaction);
+    }
+  }
+
+  return results;
 }
 
 export function classifyTransaction(tx: Transaction, _raw?: any): Transaction {

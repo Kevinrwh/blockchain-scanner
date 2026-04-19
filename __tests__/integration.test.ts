@@ -10,6 +10,7 @@ const ETHERSCAN_API_KEY = process.env.TEST_ETHERSCAN_API_KEY;
 beforeAll(() => {
   const keys: Record<string, string> = {};
   if (ETHERSCAN_API_KEY) keys['etherscan'] = ETHERSCAN_API_KEY;
+  if (SOLANA_API_KEY) keys['solana'] = SOLANA_API_KEY;
 
   vi.stubGlobal('localStorage', {
     getItem: (key: string) =>
@@ -47,9 +48,11 @@ describe.skipIf(!EVM_WALLET || !ETHERSCAN_API_KEY)('EVM scanning', () => {
   }, 30_000);
 });
 
-// Skipped until Solscan public API endpoint is confirmed — currently returning 404
-describe.skip('Solana scanning', () => {
+const SOLANA_API_KEY = process.env.TEST_SOLANA_API_KEY;
+
+describe.skipIf(!SOLANA_WALLET || !SOLANA_API_KEY)('Solana scanning', () => {
   it('returns transactions from Solana', async () => {
+    await pause(2000);
     const chain = CHAINS.find(c => c.id === 'solana')!;
     const txs = await scanChain(chain, SOLANA_WALLET!);
     expect(txs.length).toBeGreaterThan(0);

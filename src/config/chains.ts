@@ -70,11 +70,12 @@ export const CHAINS: Chain[] = [
   {
     id: 'solana',
     name: 'Solana',
-    apiUrl: 'https://public-api.solscan.io',
+    apiUrl: 'https://api.helius.xyz/v0',
     explorerUrl: 'https://solscan.io',
     logo: '◎',
     color: 'bg-purple-600',
-    apiProvider: 'solscan'
+    apiProvider: 'helius',
+    freeTierAvailable: true
   }
 ];
 
