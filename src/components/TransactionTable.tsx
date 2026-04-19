@@ -15,6 +15,7 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [searchTerm, setSearchTerm] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'transfer' | 'swap' | 'contract' | 'internal' | 'unknown'>('all');
   
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -58,12 +59,15 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
     return 0;
   });
   
-  const filteredTransactions = sortedTransactions.filter(tx =>
-    tx.hash.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.tokenSymbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.to.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTransactions = sortedTransactions.filter(tx => {
+    if (txTypeFilter !== 'all' && (tx.txType || 'unknown') !== txTypeFilter) return false;
+    return (
+      tx.hash.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tx.tokenSymbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tx.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tx.to.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
   
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) return '↕';
@@ -82,13 +86,27 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <input
-          type="text"
-          placeholder="Search transactions..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 flex-1 max-w-md"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Search transactions..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 flex-1 max-w-md"
+          />
+          <select
+            value={txTypeFilter}
+            onChange={(e) => setTxTypeFilter(e.target.value as any)}
+            className="px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 text-sm"
+          >
+            <option value="all">All types</option>
+            <option value="transfer">Transfer</option>
+            <option value="swap">Swap</option>
+            <option value="contract">Contract</option>
+            <option value="internal">Internal</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </div>
         <button
           onClick={onExport}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
