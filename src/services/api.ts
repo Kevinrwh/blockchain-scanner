@@ -165,13 +165,14 @@ async function scanEvm(
         break;
       }
       
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
-    
+
     return allTransactions;
   };
-  
+
   const tokenTransfers = await fetchPaged('tokentx');
+  if (!normalizedTokenAddress) await new Promise(r => setTimeout(r, 400));
   const nativeTransfers = normalizedTokenAddress ? [] : await fetchPaged('txlist');
   
   const tokenMapped = tokenTransfers.map((tx: any) => normalizeEvmTx(tx, chain, address));
@@ -224,9 +225,9 @@ export async function scanMultipleChains(
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
-    // brief pause between chains to stay under free-tier rate limit (3 req/sec)
+    // pause between chains to stay under free-tier rate limit (3 req/sec)
     if (chains.indexOf(chain) < chains.length - 1) {
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 800));
     }
   }
 

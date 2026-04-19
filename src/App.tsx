@@ -26,10 +26,6 @@ function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isApiKeyManagerOpen, setIsApiKeyManagerOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    const stored = localStorage.getItem('darkMode');
-    return stored !== null ? stored === 'true' : true;
-  });
 
   const chainsWithHits = Array.from(scanStatuses.values())
     .filter(s => s.transactionCount > 0)
@@ -39,10 +35,10 @@ function App() {
     .filter(s => s.status === 'error' && s.error)
     .map(s => ({ chain: getChainById(s.chainId)?.name || s.chainId, error: s.error as string }));
 
+  // Force dark body
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('darkMode', darkMode.toString());
-  }, [darkMode]);
+    document.documentElement.classList.add('dark');
+  }, []);
 
   const toggleChain = (chainId: string) => {
     setSelectedChains(prev =>
@@ -54,22 +50,10 @@ function App() {
     const hasEvm = evmAddress.trim().length > 0;
     const hasSolana = solanaAddress.trim().length > 0;
 
-    if (!hasEvm && !hasSolana) {
-      setError('Enter at least one wallet address');
-      return;
-    }
-    if (hasEvm && !isValidEthereumAddress(evmAddress)) {
-      setError('EVM address must start with 0x and be 42 characters');
-      return;
-    }
-    if (hasSolana && !isValidSolanaAddress(solanaAddress)) {
-      setError('Invalid Solana address');
-      return;
-    }
-    if (hasEvm && selectedChains.length === 0) {
-      setError('Select at least one EVM chain');
-      return;
-    }
+    if (!hasEvm && !hasSolana) { setError('Enter at least one wallet address'); return; }
+    if (hasEvm && !isValidEthereumAddress(evmAddress)) { setError('EVM address must start with 0x and be 42 characters'); return; }
+    if (hasSolana && !isValidSolanaAddress(solanaAddress)) { setError('Invalid Solana address'); return; }
+    if (hasEvm && selectedChains.length === 0) { setError('Select at least one EVM chain'); return; }
 
     setError(null);
     setIsScanning(true);
@@ -77,13 +61,8 @@ function App() {
 
     const statuses = new Map<string, ChainScanStatus>();
     const evmChains = hasEvm ? EVM_CHAINS.filter(c => selectedChains.includes(c.id)) : [];
-
-    evmChains.forEach(chain => {
-      statuses.set(chain.id, { chainId: chain.id, status: 'scanning', transactionCount: 0 });
-    });
-    if (hasSolana) {
-      statuses.set('solana', { chainId: 'solana', status: 'scanning', transactionCount: 0 });
-    }
+    evmChains.forEach(chain => statuses.set(chain.id, { chainId: chain.id, status: 'scanning', transactionCount: 0 }));
+    if (hasSolana) statuses.set('solana', { chainId: 'solana', status: 'scanning', transactionCount: 0 });
     setScanStatuses(new Map(statuses));
 
     try {
@@ -94,12 +73,7 @@ function App() {
         const evmResults = await scanMultipleChains(evmChains, evmAddress.trim(), tokenAddress || undefined);
         evmResults.forEach((result, chainId) => {
           allTransactions.push(...result.transactions);
-          updatedStatuses.set(chainId, {
-            chainId,
-            status: result.error ? 'error' : 'success',
-            error: result.error || undefined,
-            transactionCount: result.transactions.length
-          });
+          updatedStatuses.set(chainId, { chainId, status: result.error ? 'error' : 'success', error: result.error || undefined, transactionCount: result.transactions.length });
         });
         setScanStatuses(new Map(updatedStatuses));
       }
@@ -108,12 +82,7 @@ function App() {
         const solanaResults = await scanMultipleChains([SOLANA_CHAIN], solanaAddress.trim(), tokenAddress || undefined);
         solanaResults.forEach((result, chainId) => {
           allTransactions.push(...result.transactions);
-          updatedStatuses.set(chainId, {
-            chainId,
-            status: result.error ? 'error' : 'success',
-            error: result.error || undefined,
-            transactionCount: result.transactions.length
-          });
+          updatedStatuses.set(chainId, { chainId, status: result.error ? 'error' : 'success', error: result.error || undefined, transactionCount: result.transactions.length });
         });
         setScanStatuses(new Map(updatedStatuses));
       }
@@ -126,113 +95,141 @@ function App() {
     }
   };
 
-  const inputClass = 'w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
-  const labelClass = 'block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2';
+  const inputClass = 'w-full pl-8 pr-4 py-3 bg-terminal-dim border border-terminal-border text-terminal-text placeholder-terminal-muted font-mono text-sm focus:outline-none focus:border-accent transition-colors';
+  const labelClass = 'block text-[10px] font-mono uppercase tracking-[0.2em] text-terminal-muted mb-2';
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors">
+    <div className="min-h-screen bg-terminal-bg grid-bg relative overflow-x-hidden">
+      <div className="scan-line" />
+
+      {/* Corner decorations */}
+      <div className="fixed top-4 left-4 w-5 h-5 border-t border-l border-terminal-border pointer-events-none z-50" />
+      <div className="fixed top-4 right-4 w-5 h-5 border-t border-r border-terminal-border pointer-events-none z-50" />
+      <div className="fixed bottom-4 left-4 w-5 h-5 border-b border-l border-terminal-border pointer-events-none z-50" />
+      <div className="fixed bottom-4 right-4 w-5 h-5 border-b border-r border-terminal-border pointer-events-none z-50" />
+
       <div className="max-w-screen-xl mx-auto px-6 py-10">
 
         {/* Header */}
         <header className="flex items-center justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">Chain Scanner</h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">Multi-chain transaction explorer</p>
+            <div className="text-[10px] tracking-[0.3em] text-terminal-muted uppercase mb-1">[ Multichain Explorer ]</div>
+            <h1 className="font-display text-2xl font-black tracking-wider text-terminal-text">
+              CHAIN<span className="text-terminal-sub">SCANNER</span>
+            </h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-6">
+            <div className="hidden sm:flex items-center gap-4 text-[10px] tracking-[0.15em] text-terminal-muted">
+              <span><span className="status-dot active mr-1.5" style={{background:'#22c55e'}} />EVM ONLINE</span>
+              <span><span className="status-dot active mr-1.5" style={{background:'#22c55e'}} />SOLANA ONLINE</span>
+            </div>
             <button
               onClick={() => setIsApiKeyManagerOpen(true)}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="px-3 py-1.5 text-[10px] tracking-[0.15em] uppercase border border-terminal-border text-terminal-muted hover:border-terminal-sub hover:text-terminal-sub transition-colors"
             >
               API Keys
-            </button>
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-sm"
-            >
-              {darkMode ? '☀' : '☾'}
             </button>
           </div>
         </header>
 
         {/* Scan form */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 mb-4 space-y-6">
-
-          {/* EVM wallet + chain selection */}
-          <div className="space-y-3">
-            <label className={labelClass}>EVM Wallet</label>
-            <input
-              type="text"
-              value={evmAddress}
-              onChange={(e) => setEvmAddress(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleScan()}
-              placeholder="0x..."
-              className={inputClass}
-            />
-            <ChainSelector selectedChains={selectedChains} onToggle={toggleChain} />
+        <div className="border border-terminal-border bg-terminal-panel mb-4">
+          <div className="px-5 py-3 border-b border-terminal-border">
+            <span className="text-[10px] tracking-[0.2em] uppercase text-terminal-muted">[ Scan ]</span>
           </div>
 
-          <div className="border-t border-zinc-100 dark:border-zinc-800" />
-
-          {/* Solana wallet */}
-          <div>
-            <label className={labelClass}>Solana Wallet</label>
-            <input
-              type="text"
-              value={solanaAddress}
-              onChange={(e) => setSolanaAddress(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleScan()}
-              placeholder="Solana address..."
-              className={inputClass}
-            />
-          </div>
-
-          {/* Advanced toggle */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(v => !v)}
-              className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            >
-              <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
-              Advanced
-            </button>
-            {showAdvanced && (
-              <div className="mt-3 space-y-1.5">
-                <label className={labelClass}>Filter by token <span className="normal-case font-normal text-zinc-400">(optional — leave empty for all transactions)</span></label>
+          <div className="p-5 space-y-5">
+            {/* EVM wallet */}
+            <div>
+              <label className={labelClass}>EVM Wallet Address</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-accent font-mono text-sm select-none">›</span>
                 <input
                   type="text"
-                  value={tokenAddress}
-                  onChange={(e) => setTokenAddress(e.target.value)}
-                  placeholder="Token contract address or Solana mint"
+                  value={evmAddress}
+                  onChange={e => setEvmAddress(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleScan()}
+                  placeholder="0x..."
                   className={inputClass}
                 />
               </div>
-            )}
-          </div>
-
-          {error && (
-            <div className="px-4 py-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl text-sm">
-              {error}
+              <div className="mt-3">
+                <ChainSelector selectedChains={selectedChains} onToggle={toggleChain} />
+              </div>
             </div>
-          )}
 
-          <button
-            onClick={handleScan}
-            disabled={isScanning}
-            className="w-full py-3 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
-          >
-            {isScanning ? 'Scanning...' : 'Scan Transactions'}
-          </button>
+            <div className="border-t border-terminal-border" />
+
+            {/* Solana wallet */}
+            <div>
+              <label className={labelClass}>Solana Wallet Address</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-accent font-mono text-sm select-none">›</span>
+                <input
+                  type="text"
+                  value={solanaAddress}
+                  onChange={e => setSolanaAddress(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleScan()}
+                  placeholder="Solana address..."
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* Advanced */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(v => !v)}
+                className="text-[10px] tracking-[0.2em] uppercase text-terminal-muted hover:text-terminal-sub transition-colors flex items-center gap-2"
+              >
+                <span className={`transition-transform inline-block ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
+                Advanced
+              </button>
+              {showAdvanced && (
+                <div className="mt-3">
+                  <label className={labelClass}>
+                    Filter by token <span className="normal-case tracking-normal text-terminal-muted opacity-60">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-accent font-mono text-sm select-none">›</span>
+                    <input
+                      type="text"
+                      value={tokenAddress}
+                      onChange={e => setTokenAddress(e.target.value)}
+                      placeholder="Token contract address or Solana mint"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <div className="px-4 py-3 border border-red-900/50 bg-red-950/20 text-red-400 text-xs tracking-wide">
+                ⚠ {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleScan}
+              disabled={isScanning}
+              className="w-full py-3.5 bg-accent text-[#0c0c0c] text-[11px] tracking-[0.3em] uppercase font-mono font-bold hover:bg-accent/90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              {isScanning ? '[ SCANNING... ]' : '[ SCAN TRANSACTIONS ]'}
+            </button>
+          </div>
         </div>
 
         {/* Scan status */}
         {(isScanning || scanStatuses.size > 0) && (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
-              {isScanning ? 'Scanning' : 'Results'}
-            </p>
-            <div className="space-y-2">
+          <div className="border border-terminal-border bg-terminal-panel mb-4">
+            <div className="px-5 py-3 border-b border-terminal-border">
+              <span className="text-[10px] tracking-[0.2em] uppercase text-terminal-muted">
+                {isScanning ? '[ Scanning ]' : '[ Results ]'}
+              </span>
+            </div>
+            <div className="p-5 space-y-2">
               {Array.from(scanStatuses.values()).map(status => (
                 <ChainStatus key={status.chainId} status={status} />
               ))}
@@ -244,10 +241,10 @@ function App() {
         {transactions.length > 0 && (
           <>
             {chainsWithHits.length > 0 && (
-              <div className="flex items-center gap-2 mb-4 flex-wrap">
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">Activity on:</span>
+              <div className="flex items-center gap-3 mb-4 flex-wrap">
+                <span className="text-[10px] tracking-[0.15em] uppercase text-terminal-muted">Activity on:</span>
                 {chainsWithHits.map(name => (
-                  <span key={name} className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                  <span key={name} className="px-2 py-0.5 border border-terminal-border text-[10px] tracking-[0.1em] uppercase text-terminal-sub">
                     {name}
                   </span>
                 ))}
@@ -255,10 +252,10 @@ function App() {
             )}
 
             {chainsWithErrors.length > 0 && (
-              <div className="mb-4 px-4 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">Errors</p>
+              <div className="mb-4 px-4 py-3 border border-yellow-900/50 bg-yellow-950/10">
+                <p className="text-[10px] tracking-[0.2em] uppercase text-yellow-600 mb-1">[ Errors ]</p>
                 {chainsWithErrors.map(item => (
-                  <p key={item.chain} className="text-xs text-amber-700 dark:text-amber-300">
+                  <p key={item.chain} className="text-xs text-yellow-700">
                     <span className="font-medium">{item.chain}:</span> {item.error}
                   </p>
                 ))}
@@ -269,19 +266,21 @@ function App() {
               <Summary transactions={transactions} />
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Transactions</p>
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">{transactions.length} total</span>
+            <div className="border border-terminal-border bg-terminal-panel">
+              <div className="px-5 py-3 border-b border-terminal-border flex items-center justify-between">
+                <span className="text-[10px] tracking-[0.2em] uppercase text-terminal-muted">[ Transactions ]</span>
+                <span className="text-[10px] text-terminal-muted">{transactions.length} total</span>
               </div>
-              <TransactionTable transactions={transactions} onExport={() => exportToCSV(transactions)} />
+              <div className="p-5">
+                <TransactionTable transactions={transactions} onExport={() => exportToCSV(transactions)} />
+              </div>
             </div>
           </>
         )}
 
         {!isScanning && transactions.length === 0 && scanStatuses.size === 0 && (
-          <div className="text-center py-16 text-zinc-400 dark:text-zinc-600">
-            <p className="text-sm">Enter a wallet address above to get started</p>
+          <div className="text-center py-20 text-terminal-muted">
+            <p className="text-[10px] tracking-[0.3em] uppercase">Enter a wallet address above to begin</p>
           </div>
         )}
       </div>

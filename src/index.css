@@ -1,13 +1,84 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Share Tech Mono', monospace;
+    background: #0c0c0c;
+    color: #e8e8e8;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  }
+
+  input, textarea, select {
+    background-color: #1a1a1a;
+    color: #e8e8e8;
+    border-color: #2a2a2a;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #555555;
+  }
+
+  /* Prevent autofill from flashing white */
+  input:-webkit-autofill,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset;
+    -webkit-text-fill-color: #e8e8e8;
+    caret-color: #e8e8e8;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #0c0c0c; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; }
+}
+
+@layer utilities {
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .corner-tl::before,
+  .corner-tr::after,
+  .corner-bl::before,
+  .corner-br::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-color: #3a3a3a;
+    border-style: solid;
+  }
+
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(200,200,200,0.06), transparent);
+    animation: scan 6s linear infinite;
+    pointer-events: none;
   }
 }
+
+@keyframes scan {
+  0%   { top: 0%; }
+  100% { top: 100%; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.status-dot {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #555;
+  animation: blink 2.5s ease-in-out infinite;
+}
+.status-dot.active { background: #888; }

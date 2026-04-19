@@ -9,7 +9,7 @@ interface ApiKeyManagerProps {
 export function ApiKeyManager({ isOpen, onClose }: ApiKeyManagerProps) {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>(() => ({
     etherscan: getApiKey('etherscan') || '',
-    solana: getApiKey('solana') || ''
+    solana:    getApiKey('solana')    || ''
   }));
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -41,65 +41,67 @@ export function ApiKeyManager({ isOpen, onClose }: ApiKeyManagerProps) {
 
   if (!isOpen) return null;
 
-  const inputClass = 'w-full px-3 py-2.5 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
-  const labelClass = 'block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5';
+  const inputClass = 'w-full px-3 py-2.5 text-sm bg-terminal-dim border border-terminal-border text-terminal-text placeholder-terminal-muted font-mono focus:outline-none focus:border-terminal-sub transition-colors';
+  const labelClass = 'block text-[10px] tracking-[0.2em] uppercase text-terminal-muted mb-1.5';
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">API Keys</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors text-lg leading-none">✕</button>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-terminal-panel border border-terminal-border w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-terminal-border">
+          <span className="text-[10px] tracking-[0.2em] uppercase text-terminal-muted">[ API Keys ]</span>
+          <button onClick={onClose} className="text-terminal-muted hover:text-terminal-sub transition-colors text-sm">✕</button>
         </div>
 
-        <div className="px-6 py-5 space-y-5">
+        <div className="px-5 py-5 space-y-5">
           <div>
             <label className={labelClass}>Etherscan — all EVM chains</label>
             <input
               type="text"
               value={apiKeys.etherscan}
-              onChange={(e) => handleSave('etherscan', e.target.value)}
+              onChange={e => handleSave('etherscan', e.target.value)}
               placeholder="Etherscan API key"
               className={inputClass}
             />
-            <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
-              Required for Ethereum, Polygon, Arbitrum. Paid plan needed for Base, BSC, Avalanche.
+            <p className="mt-1.5 text-[10px] text-terminal-muted tracking-wide">
+              Required for Ethereum, Polygon, Arbitrum. Paid plan for Base, BSC, Avalanche.
             </p>
             <div className="mt-2.5 flex items-center gap-3">
               <button
                 onClick={handleTestEtherscanKey}
                 disabled={isTesting}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-[10px] tracking-[0.15em] uppercase border border-terminal-border text-terminal-muted hover:border-terminal-sub hover:text-terminal-sub transition-colors disabled:opacity-40"
               >
                 {isTesting ? 'Testing...' : 'Test Key'}
               </button>
               {testResult && (
-                <span className={`text-xs font-medium ${testResult.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                <span className={`text-[10px] tracking-wide ${testResult.ok ? 'text-emerald-600' : 'text-red-700'}`}>
                   {testResult.ok ? '✓' : '✗'} {testResult.msg}
                 </span>
               )}
             </div>
           </div>
 
+          <div className="border-t border-terminal-border" />
+
           <div>
             <label className={labelClass}>Helius — Solana</label>
             <input
               type="text"
               value={apiKeys.solana}
-              onChange={(e) => handleSave('solana', e.target.value)}
+              onChange={e => handleSave('solana', e.target.value)}
               placeholder="Helius API key"
               className={inputClass}
             />
-            <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+            <p className="mt-1.5 text-[10px] text-terminal-muted tracking-wide">
               Free tier available at helius.dev
             </p>
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-end">
+        <div className="px-5 py-4 border-t border-terminal-border flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+            className="px-5 py-2 text-[10px] tracking-[0.2em] uppercase border border-terminal-border text-terminal-muted hover:border-terminal-sub hover:text-terminal-sub transition-colors"
           >
             Done
           </button>

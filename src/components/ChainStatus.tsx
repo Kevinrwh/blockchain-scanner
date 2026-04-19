@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ChainScanStatus } from '../types';
 import { getChainById } from '../config/chains';
 
@@ -6,44 +7,54 @@ interface ChainStatusProps {
 }
 
 export function ChainStatus({ status }: ChainStatusProps) {
+  const [showError, setShowError] = useState(false);
   const chain = getChainById(status.chainId);
   if (!chain) return null;
 
   const isScanning = status.status === 'scanning';
-  const isSuccess = status.status === 'success';
-  const isError = status.status === 'error';
+  const isSuccess  = status.status === 'success';
+  const isError    = status.status === 'error';
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
-      <div className="flex items-center gap-2.5">
-        <span className="text-base">{chain.logo}</span>
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{chain.name}</span>
+    <div>
+      <div className="flex items-center justify-between px-4 py-2.5 border border-terminal-border bg-[#111]">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base">{chain.logo}</span>
+          <span className="text-xs tracking-[0.1em] uppercase text-terminal-text">{chain.name}</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {isScanning && (
+            <div className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />
+          )}
+          <span className={`text-[10px] tracking-[0.1em] uppercase font-mono ${
+            isScanning ? 'text-terminal-sub' :
+            isSuccess  ? 'text-accent'  :
+            isError    ? 'text-red-600'      :
+                         'text-terminal-muted'
+          }`}>
+            {isScanning ? 'Scanning...' :
+             isSuccess  ? `${status.transactionCount} txns` :
+             isError    ? '0 txns' : '—'}
+          </span>
+
+          {isError && status.error && (
+            <button
+              onClick={() => setShowError(v => !v)}
+              className="text-[10px] tracking-[0.15em] uppercase font-mono px-2 py-0.5 border border-yellow-800 text-yellow-600 hover:bg-yellow-900/20 transition-colors"
+            >
+              {showError ? 'Hide' : '⚠ Error'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {isScanning && (
-          <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-        )}
-        <span className={`text-xs font-medium ${
-          isScanning ? 'text-indigo-500 dark:text-indigo-400' :
-          isSuccess  ? 'text-emerald-600 dark:text-emerald-400' :
-          isError    ? 'text-rose-500 dark:text-rose-400' :
-                       'text-zinc-400'
-        }`}>
-          {isScanning ? 'Scanning...' :
-           isSuccess  ? `${status.transactionCount} txns` :
-           isError    ? '0 txns' : '—'}
-        </span>
-
-        {isError && status.error && (
-          <div className="group relative">
-            <span className="text-xs text-amber-500 cursor-help select-none">⚠</span>
-            <div className="absolute right-0 top-full mt-1 w-56 p-2.5 bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none leading-relaxed">
-              {status.error}
-            </div>
-          </div>
-        )}
-      </div>
+      {isError && showError && status.error && (
+        <div className="border border-t-0 border-yellow-900/60 bg-[#0f0c00] px-4 py-3">
+          <p className="text-[10px] tracking-[0.15em] uppercase text-yellow-600 mb-1">Error</p>
+          <p className="text-xs font-mono text-yellow-500 leading-relaxed">{status.error}</p>
+        </div>
+      )}
     </div>
   );
 }

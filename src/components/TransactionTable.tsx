@@ -26,11 +26,11 @@ const METHOD_LABEL: Record<string, string> = {
 };
 
 const METHOD_STYLE: Record<string, string> = {
-  transfer: 'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400',
-  swap:     'border-indigo-400 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400',
-  contract: 'border-purple-400 dark:border-purple-500 text-purple-600 dark:text-purple-400',
-  internal: 'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400',
-  unknown:  'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400',
+  transfer: 'border-terminal-border text-terminal-muted',
+  swap:     'border-terminal-sub   text-terminal-sub',
+  contract: 'border-terminal-border text-terminal-muted',
+  internal: 'border-terminal-border text-terminal-muted',
+  unknown:  'border-terminal-border text-terminal-muted',
 };
 
 function buildDisplayRows(txs: Transaction[]): DisplayRow[] {
@@ -109,13 +109,13 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
   const displayRows = buildDisplayRows(filtered);
 
   const SortIcon = ({ field }: { field: SortField }) => (
-    <span className="ml-1 text-zinc-400">
+    <span className="ml-1 text-terminal-muted">
       {sortField !== field ? '↕' : sortDirection === 'asc' ? '↑' : '↓'}
     </span>
   );
 
-  const th     = 'px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 select-none whitespace-nowrap';
-  const thSort = th + ' cursor-pointer hover:text-zinc-600 dark:hover:text-zinc-300';
+  const th     = 'px-3 py-2.5 text-left text-[10px] tracking-[0.15em] uppercase text-terminal-muted select-none whitespace-nowrap font-mono';
+  const thSort = th + ' cursor-pointer hover:text-terminal-sub';
 
   const directionTabs: { key: DirectionFilter; label: string }[] = [
     { key: 'all',      label: 'All'      },
@@ -126,29 +126,29 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
 
   const AddressCell = ({ address }: { address: string }) => (
     <div className="flex items-center gap-1">
-      <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{formatAddress(address)}</span>
+      <span className="font-mono text-xs text-terminal-muted">{formatAddress(address)}</span>
       <button
         onClick={() => copyToClipboard(address)}
-        className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors text-xs"
+        className="text-terminal-border hover:text-terminal-muted transition-colors text-xs"
         title="Copy address"
       >⧉</button>
     </div>
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden text-xs font-medium">
+          <div className="flex border border-terminal-border overflow-hidden text-[10px] tracking-[0.12em] uppercase">
             {directionTabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setDirFilter(tab.key)}
-                className={`px-3 py-1.5 transition-colors ${
+                className={`px-3 py-1.5 transition-colors font-mono ${
                   directionFilter === tab.key
-                    ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900'
-                    : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700'
+                    ? 'bg-accent/10 text-accent border-r border-terminal-border'
+                    : 'text-terminal-muted hover:text-terminal-sub border-r border-terminal-border last:border-r-0'
                 }`}
               >
                 {tab.label}
@@ -160,21 +160,21 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
             placeholder="Search hash, token, address..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-64"
+            className="px-3 py-1.5 text-xs bg-terminal-dim border border-terminal-border text-terminal-text placeholder-terminal-muted focus:outline-none focus:border-terminal-sub transition-colors w-64 font-mono"
           />
         </div>
         <button
           onClick={onExport}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors whitespace-nowrap"
+          className="px-3 py-1.5 text-[10px] tracking-[0.15em] uppercase border border-terminal-border text-terminal-muted hover:border-terminal-sub hover:text-terminal-sub transition-colors font-mono whitespace-nowrap"
         >
           Export CSV
         </button>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-zinc-100 dark:border-zinc-800">
+      <div className="overflow-x-auto border border-terminal-border">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-50 dark:bg-zinc-800/50">
+          <thead className="bg-terminal-dim border-b border-terminal-border">
             <tr>
               <th className={th}>Tx Hash</th>
               <th className={th}>Method</th>
@@ -187,7 +187,7 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
               <th className={th}>Fee</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody className="divide-y divide-terminal-border">
             {displayRows.map((row, idx) => {
               if (row.kind === 'swap') {
                 const { out, in: inTx } = row;
@@ -195,47 +195,43 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
                 const isFailed = out.status === 'failed';
 
                 return (
-                  <tr key={`${out.hash}-${idx}`} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors ${isFailed ? 'opacity-60' : ''}`}>
+                  <tr key={`${out.hash}-${idx}`} className={`hover:bg-terminal-dim transition-colors ${isFailed ? 'opacity-40' : ''}`}>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        {isFailed && <span className="text-rose-500 text-xs" title="Failed">⊘</span>}
+                        {isFailed && <span className="text-red-800 text-xs" title="Failed">⊘</span>}
                         <a href={`${chain?.explorerUrl}/tx/${out.hash}`} target="_blank" rel="noopener noreferrer"
-                          className="font-mono text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">
+                          className="font-mono text-xs text-terminal-sub hover:text-terminal-text transition-colors">
                           {formatAddress(out.hash)}
                         </a>
-                        <button onClick={() => copyToClipboard(out.hash)} className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 transition-colors text-xs" title="Copy hash">⧉</button>
+                        <button onClick={() => copyToClipboard(out.hash)} className="text-terminal-border hover:text-terminal-muted transition-colors text-xs" title="Copy hash">⧉</button>
                       </div>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-0.5 rounded border text-[11px] font-medium ${METHOD_STYLE.swap}`}>Swap</span>
+                      <span className={`inline-flex px-2 py-0.5 border text-[10px] tracking-[0.1em] uppercase font-mono ${METHOD_STYLE.swap}`}>Swap</span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <span className="flex items-center gap-1.5">
                         <span>{chain?.logo}</span>
-                        <span className="text-xs text-zinc-600 dark:text-zinc-300">{out.chain}</span>
+                        <span className="text-xs text-terminal-muted tracking-wide">{out.chain}</span>
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap" title={out.date}>
+                    <td className="px-3 py-3 text-xs text-terminal-muted whitespace-nowrap font-mono" title={out.date}>
                       {formatAge(out.timestamp)}
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap"><AddressCell address={out.from} /></td>
                     <td className="px-1 py-3">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                      <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] tracking-[0.1em] font-mono border border-terminal-sub text-terminal-sub">
                         SWAP
                       </span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap"><AddressCell address={inTx.to} /></td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <div className="flex flex-col gap-0.5">
-                        <span className="font-mono text-xs font-medium text-rose-600 dark:text-rose-400">
-                          -{out.amount} {out.tokenSymbol}
-                        </span>
-                        <span className="font-mono text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                          +{inTx.amount} {inTx.tokenSymbol}
-                        </span>
+                        <span className="font-mono text-xs text-red-800">-{out.amount} {out.tokenSymbol}</span>
+                        <span className="font-mono text-xs text-accent">+{inTx.amount} {inTx.tokenSymbol}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-3 font-mono text-xs text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+                    <td className="px-3 py-3 font-mono text-xs text-terminal-muted whitespace-nowrap">
                       {out.fee ? `${out.fee} ${chain?.nativeCurrency || 'ETH'}` : '—'}
                     </td>
                   </tr>
@@ -250,37 +246,37 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
               const methodKey = tx.txType || 'unknown';
 
               return (
-                <tr key={`${tx.hash}-${idx}`} className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors ${isFailed ? 'opacity-60' : ''}`}>
+                <tr key={`${tx.hash}-${idx}`} className={`hover:bg-terminal-dim transition-colors ${isFailed ? 'opacity-40' : ''}`}>
                   <td className="px-3 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
-                      {isFailed && <span className="text-rose-500 text-xs" title="Failed">⊘</span>}
+                      {isFailed && <span className="text-red-800 text-xs" title="Failed">⊘</span>}
                       <a href={`${chain?.explorerUrl}/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer"
-                        className="font-mono text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500">
+                        className="font-mono text-xs text-terminal-sub hover:text-terminal-text transition-colors">
                         {formatAddress(tx.hash)}
                       </a>
-                      <button onClick={() => copyToClipboard(tx.hash)} className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 transition-colors text-xs" title="Copy hash">⧉</button>
+                      <button onClick={() => copyToClipboard(tx.hash)} className="text-terminal-border hover:text-terminal-muted transition-colors text-xs" title="Copy hash">⧉</button>
                     </div>
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-0.5 rounded border text-[11px] font-medium ${METHOD_STYLE[methodKey] || METHOD_STYLE.unknown}`}>
+                    <span className={`inline-flex px-2 py-0.5 border text-[10px] tracking-[0.1em] uppercase font-mono ${METHOD_STYLE[methodKey] || METHOD_STYLE.unknown}`}>
                       {METHOD_LABEL[methodKey] || 'Transfer'}
                     </span>
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap">
                     <span className="flex items-center gap-1.5">
                       <span>{chain?.logo}</span>
-                      <span className="text-xs text-zinc-600 dark:text-zinc-300">{tx.chain}</span>
+                      <span className="text-xs text-terminal-muted tracking-wide">{tx.chain}</span>
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap" title={tx.date}>
+                  <td className="px-3 py-3 text-xs text-terminal-muted whitespace-nowrap font-mono" title={tx.date}>
                     {formatAge(tx.timestamp)}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap"><AddressCell address={tx.from} /></td>
                   <td className="px-1 py-3">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                    <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] tracking-[0.1em] font-mono border ${
                       isIn
-                        ? 'border-emerald-300 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                        : 'border-rose-300 dark:border-rose-600 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                        ? 'border-accent/50 text-accent'
+                        : 'border-red-700/50 text-red-500'
                     }`}>
                       {isIn ? 'IN' : 'OUT'}
                     </span>
@@ -292,19 +288,19 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
                         isFailed
                           ? 'text-zinc-400 dark:text-zinc-500 line-through'
                           : isIn
-                            ? 'text-emerald-700 dark:text-emerald-400'
-                            : 'text-rose-600 dark:text-rose-400'
+                            ? 'text-accent'
+                            : 'text-red-500'
                       }`}>
                         {isIn ? '+' : '-'}{tx.amount} {tx.tokenSymbol}
                       </span>
                       {tx.protocol && (
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                        <span className="text-[10px] text-terminal-muted">
                           {tx.protocol.replace(/_/g, ' ')}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-3 font-mono text-xs text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
+                  <td className="px-3 py-3 font-mono text-xs text-terminal-muted whitespace-nowrap">
                     {tx.fee ? `${tx.fee} ${chain?.nativeCurrency || 'ETH'}` : '—'}
                   </td>
                 </tr>
@@ -314,13 +310,13 @@ export function TransactionTable({ transactions, onExport }: TransactionTablePro
         </table>
 
         {displayRows.length === 0 && (
-          <div className="py-12 text-center text-xs text-zinc-400 dark:text-zinc-600">
+          <div className="py-12 text-center text-[10px] tracking-[0.2em] uppercase text-terminal-muted">
             No transactions match your filters
           </div>
         )}
       </div>
 
-      <p className="text-xs text-zinc-400 dark:text-zinc-500">
+      <p className="text-[10px] tracking-[0.1em] text-terminal-muted font-mono">
         Showing {displayRows.length} of {transactions.length} transactions
       </p>
     </div>
