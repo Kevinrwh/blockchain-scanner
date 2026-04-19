@@ -11,7 +11,10 @@ npm run lint      # eslint (zero warnings allowed)
 npm test          # vitest (watch mode)
 npx vitest run    # single test run (CI-style)
 npx vitest run __tests__/normalize.evm.test.ts  # run one test file
+npx vitest run --config vitest.integration.config.ts  # live API integration tests (requires .env.local)
 ```
+
+Integration tests hit live APIs and are excluded from `npm test`. They read wallet addresses from `.env.local` (gitignored) and skip gracefully if the file is absent.
 
 ## Architecture
 
@@ -20,7 +23,7 @@ This is a fully client-side React + TypeScript app — no backend. All chain sca
 ### Data flow
 
 1. `App.tsx` owns all state (wallet address, selected chains, scan statuses, transactions).
-2. On scan, it calls `scanMultipleChains()` from `src/services/api.ts`, which fans out to `scanEvm()` or `scanSolana()` per chain in parallel.
+2. On scan, it calls `scanMultipleChains()` from `src/services/api.ts`, which scans chains **sequentially** (500ms gap between each) to stay under the Etherscan free-tier rate limit (3 req/sec).
 3. Raw API responses are normalized into `Transaction` objects via `src/services/normalize.ts` (`normalizeEvmTx`, `normalizeSolanaTx`).
 4. Results stream back and `App.tsx` merges them into a flat `Transaction[]` for display.
 
@@ -36,7 +39,7 @@ This is a fully client-side React + TypeScript app — no backend. All chain sca
 All chains are defined in the `CHAINS` array. Key fields:
 - `apiProvider`: `'etherscan_v2'` or `'solscan'` — determines which scanner is used.
 - `evmChainId`: required for EVM chains; passed as `chainid=` to the Etherscan v2 API.
-- `freeTierAvailable`: chains marked `false` require a paid Etherscan plan and are skipped by default.
+- `freeTierAvailable`: chains marked `false` require a paid Etherscan plan. They are unchecked by default in the UI but can be enabled — scans will fail with a clear error if the key doesn't have access.
 
 ### Normalization (`src/services/normalize.ts`)
 
