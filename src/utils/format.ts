@@ -18,6 +18,21 @@ export function formatTokenAmount(amount: string, decimals: number): string {
   }
 }
 
+export function formatAge(timestamp: number): string {
+  const seconds = Math.floor(Date.now() / 1000) - timestamp;
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours !== 1 ? 's' : ''} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days !== 1 ? 's' : ''} ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} mo ago`;
+  const years = Math.floor(months / 12);
+  return `${years} yr${years !== 1 ? 's' : ''} ago`;
+}
+
 export function formatDate(timestamp: number): string {
   const date = new Date(timestamp * 1000);
   const year = date.getUTCFullYear();
@@ -38,13 +53,16 @@ export function formatDate(timestamp: number): string {
 export function exportToCSV(transactions: any[]): void {
   if (transactions.length === 0) return;
   
-  const headers = ['Date', 'Chain', 'Type', 'Amount', 'Token', 'From', 'To', 'TX Hash'];
+  const headers = ['Date', 'Chain', 'Status', 'Type', 'Amount', 'Token', 'Protocol', 'Fee', 'From', 'To', 'TX Hash'];
   const rows = transactions.map(tx => [
     tx.date,
     tx.chain,
+    tx.status || 'success',
     tx.type.toUpperCase(),
     tx.amount,
     tx.tokenSymbol,
+    tx.protocol || '',
+    tx.fee ? `${tx.fee} ${tx.chain === 'Solana' ? 'SOL' : 'ETH'}` : '',
     tx.from,
     tx.to,
     tx.hash

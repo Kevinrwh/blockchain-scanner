@@ -22,28 +22,31 @@ This is a fully client-side React + TypeScript app — no backend. All chain sca
 
 ### Data flow
 
-1. `App.tsx` owns all state (wallet address, selected chains, scan statuses, transactions).
-2. On scan, it calls `scanMultipleChains()` from `src/services/api.ts`, which scans chains **sequentially** (500ms gap between each) to stay under the Etherscan free-tier rate limit (3 req/sec).
-3. Raw API responses are normalized into `Transaction` objects via `src/services/normalize.ts` (`normalizeEvmTx`, `normalizeSolanaTx`).
-4. Results stream back and `App.tsx` merges them into a flat `Transaction[]` for display.
+1. `App.tsx` owns all state (EVM address, Solana address, selected chains, scan statuses, transactions).
+2. On scan, it calls `scanMultipleChains()` from `src/services/api.ts` — first for selected EVM chains, then for Solana — with intermediate status updates between groups.
+3. EVM chains scan **sequentially** with a 500ms gap between each to stay under the Etherscan free-tier rate limit (3 req/sec).
+4. Raw API responses are normalized into `Transaction` objects via `src/services/normalize.ts`.
+5. Results are merged into a flat `Transaction[]` for display.
 
 ### API layer (`src/services/api.ts`)
 
-- **EVM chains** use the Etherscan v2 unified API (`api.etherscan.io/v2/api`) with `chainid=` param. Two endpoints are queried: `tokentx` (ERC-20 transfers) and `txlist` (native transfers). Paginated up to 20 pages × 100 results.
-- **Solana** uses the Solscan public API (`public-api.solscan.io`), querying `/account/spl-token-transfers`.
+- **EVM chains** use the Etherscan v2 unified API (`api.etherscan.io/v2/api`) with `chainid=` param. Two endpoints are queried per chain: `tokentx` (ERC-20 transfers) and `txlist` (native transfers). Paginated up to 20 pages × 100 results.
+- **Solana** uses the Helius API (`api.helius.xyz/v0`) with cursor-based pagination (`before=` param). Returns enhanced transactions with `tokenTransfers[]` and `nativeTransfers[]`.
 - `fetchWithRetry` handles 429 rate limits with exponential backoff.
-- API keys are stored in `localStorage` via `src/utils/storage.ts` and injected per-request. EVM chains share a single `etherscan` key; Solana uses `solana`.
+- API keys are stored in `localStorage` via `src/utils/storage.ts` and injected per-request. EVM chains share a single `etherscan` key; Solana uses a `solana` key (Helius API key).
 
 ### Chain config (`src/config/chains.ts`)
 
 All chains are defined in the `CHAINS` array. Key fields:
-- `apiProvider`: `'etherscan_v2'` or `'solscan'` — determines which scanner is used.
+- `apiProvider`: `'etherscan_v2'` or `'helius'` — determines which scanner is used.
 - `evmChainId`: required for EVM chains; passed as `chainid=` to the Etherscan v2 API.
-- `freeTierAvailable`: chains marked `false` require a paid Etherscan plan. They are unchecked by default in the UI but can be enabled — scans will fail with a clear error if the key doesn't have access.
+- `freeTierAvailable`: chains marked `false` require a paid Etherscan plan. They are unchecked by default in the UI but can be toggled on — scans will fail with a clear error if the key doesn't have access.
 
 ### Normalization (`src/services/normalize.ts`)
 
-Both `normalizeEvmTx` and `normalizeSolanaTx` accept raw API response objects and produce typed `Transaction` values. They handle field name variance across API versions. `guessTxTypeFromEvm` classifies transactions by inspecting the `input` field for known DEX method signatures.
+- `normalizeEvmTx`: raw Etherscan response → single `Transaction`
+- `normalizeHeliusTx`: raw Helius response → `Transaction[]` (1:N — expands `tokenTransfers[]` into individual rows; falls back to `nativeTransfers[]` as SOL if no token transfers match)
+- `guessTxTypeFromEvm` classifies EVM transactions by inspecting the `input` field for known DEX method signatures.
 
 ### Types (`src/types/index.ts`)
 
@@ -51,4 +54,4 @@ Both `normalizeEvmTx` and `normalizeSolanaTx` accept raw API response objects an
 
 ### Tests (`__tests__/`)
 
-Unit tests cover `normalizeEvmTx` and `normalizeSolanaTx` only. Tests live in `__tests__/` and use vitest globals.
+Unit tests cover `normalizeEvmTx` and `normalizeSolanaTx`. Tests live in `__tests__/` and use vitest globals.

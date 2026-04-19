@@ -131,7 +131,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 transition-colors">
-      <div className="max-w-5xl mx-auto px-4 py-10">
+      <div className="max-w-screen-xl mx-auto px-6 py-10">
 
         {/* Header */}
         <header className="flex items-center justify-between mb-10">

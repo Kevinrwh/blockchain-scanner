@@ -50,7 +50,7 @@ describe('normalizeEvmTx', () => {
     };
 
     const tx = normalizeEvmTx(raw, chain, '0xY');
-    expect(tx.tokenSymbol).toBe('NATIVE');
+    expect(tx.tokenSymbol).toBe('ETH');
     expect(tx.amount).toBe('1');
     expect(tx.txType).toBe('transfer');
   });

@@ -1,6 +1,6 @@
 import type { Chain, Transaction } from '../types';
 import { getApiKey } from '../utils/storage';
-import { normalizeEvmTx, normalizeHeliusTx } from './normalize';
+import { normalizeEvmTx, normalizeHeliusTx, isSpamToken } from './normalize';
 
 interface ApiResponse {
   status: string;
@@ -52,6 +52,7 @@ async function scanSolana(
 
   const limit = 100;
   const allTransactions: Transaction[] = [];
+  const seenSignatures = new Set<string>();
   let before: string | undefined;
 
   for (let page = 0; page < 20; page++) {
@@ -66,6 +67,8 @@ async function scanSolana(
     if (!Array.isArray(data) || data.length === 0) break;
 
     for (const tx of data) {
+      if (tx.signature && seenSignatures.has(tx.signature)) continue;
+      if (tx.signature) seenSignatures.add(tx.signature);
       const normalized = normalizeHeliusTx(tx, chain, address, tokenAddress);
       allTransactions.push(...normalized);
     }
@@ -174,7 +177,9 @@ async function scanEvm(
   const tokenMapped = tokenTransfers.map((tx: any) => normalizeEvmTx(tx, chain, address));
   const nativeMapped = nativeTransfers.map((tx: any) => normalizeEvmTx(tx, chain, address));
 
-  return [...tokenMapped, ...nativeMapped].filter((tx: Transaction) => tx.hash);
+  return [...tokenMapped, ...nativeMapped].filter(
+    (tx: Transaction) => tx.hash && !isSpamToken(tx.tokenName, tx.tokenSymbol)
+  );
 }
 
 export async function scanChain(

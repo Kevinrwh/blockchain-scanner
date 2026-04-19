@@ -10,6 +10,7 @@ export const CHAINS: Chain[] = [
     color: 'bg-blue-500',
     apiProvider: 'etherscan_v2',
     evmChainId: 1,
+    nativeCurrency: 'ETH',
     freeTierAvailable: true
   },
   {
@@ -21,6 +22,7 @@ export const CHAINS: Chain[] = [
     color: 'bg-purple-500',
     apiProvider: 'etherscan_v2',
     evmChainId: 137,
+    nativeCurrency: 'POL',
     freeTierAvailable: true
   },
   {
@@ -32,6 +34,7 @@ export const CHAINS: Chain[] = [
     color: 'bg-cyan-500',
     apiProvider: 'etherscan_v2',
     evmChainId: 42161,
+    nativeCurrency: 'ETH',
     freeTierAvailable: true
   },
   {
@@ -43,6 +46,7 @@ export const CHAINS: Chain[] = [
     color: 'bg-indigo-500',
     apiProvider: 'etherscan_v2',
     evmChainId: 8453,
+    nativeCurrency: 'ETH',
     freeTierAvailable: false
   },
   {
@@ -54,6 +58,7 @@ export const CHAINS: Chain[] = [
     color: 'bg-sky-500',
     apiProvider: 'etherscan_v2',
     evmChainId: 43114,
+    nativeCurrency: 'AVAX',
     freeTierAvailable: false
   },
   {
@@ -65,6 +70,7 @@ export const CHAINS: Chain[] = [
     color: 'bg-yellow-500',
     apiProvider: 'etherscan_v2',
     evmChainId: 56,
+    nativeCurrency: 'BNB',
     freeTierAvailable: false
   },
   {
@@ -75,6 +81,7 @@ export const CHAINS: Chain[] = [
     logo: '◎',
     color: 'bg-purple-600',
     apiProvider: 'helius',
+    nativeCurrency: 'SOL',
     freeTierAvailable: true
   }
 ];

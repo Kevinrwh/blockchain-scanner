@@ -7,6 +7,7 @@ export interface Chain {
   color: string;
   apiProvider?: 'etherscan_v2' | 'helius';
   evmChainId?: number;
+  nativeCurrency?: string;
   freeTierAvailable?: boolean;
 }
 
@@ -27,6 +28,9 @@ export interface Transaction {
   valueNative?: string;
   txType?: 'transfer' | 'swap' | 'contract' | 'internal' | 'unknown';
   tokenName?: string;
+  fee?: string;
+  status?: 'success' | 'failed';
+  protocol?: string;
   decoded?: any;
 }
 
