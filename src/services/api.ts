@@ -1,6 +1,7 @@
 import type { Chain, Transaction } from '../types';
 import { getApiKey } from '../utils/storage';
 import { formatTokenAmount, formatDate } from '../utils/format';
+import { normalizeEvmTx, normalizeSolanaTx } from './normalize';
 
 interface ApiResponse {
   status: string;
@@ -91,44 +92,12 @@ async function scanSolana(
     if (transactions.length === 0) {
       return [];
     }
-    
-    return transactions.map((tx: any) => {
-      // Solana transaction structure is different - handle various field names
-      const dest = tx.destination || tx.dst || tx.to || '';
-      const src = tx.source || tx.src || tx.from || '';
-      const isIncoming = dest.toLowerCase() === address.toLowerCase();
-      
-      const decimals = tx.tokenDecimals || tx.decimals || 9; // Solana tokens typically use 9 decimals
-      const amount = tx.amount || tx.changeAmount || tx.quantity || '0';
-      const formattedAmount = formatTokenAmount(amount.toString(), decimals);
-      
-      // Convert Solana timestamp (seconds or milliseconds) to Unix timestamp (seconds)
-      let timestamp = Math.floor(Date.now() / 1000);
-      if (tx.blockTime) {
-        timestamp = tx.blockTime > 10000000000 
-          ? Math.floor(tx.blockTime / 1000) // If milliseconds
-          : tx.blockTime; // If already in seconds
-      } else if (tx.timestamp) {
-        timestamp = tx.timestamp > 10000000000 
-          ? Math.floor(tx.timestamp / 1000)
-          : tx.timestamp;
-      }
-      
-      return {
-        chain: chain.name,
-        hash: tx.signature || tx.txHash || tx.hash || '',
-        timestamp,
-        date: formatDate(timestamp),
-        type: isIncoming ? 'in' : 'out',
-        from: src,
-        to: dest,
-        amount: formattedAmount,
-        tokenSymbol: tx.tokenSymbol || tx.symbol || tx.tokenName || 'UNKNOWN',
-        tokenAddress: tx.mint || tx.tokenMint || tokenAddress || '',
-        tokenDecimals: decimals,
-        blockNumber: (tx.slot || tx.blockNumber || '').toString()
-      } as Transaction;
-    }).filter((tx: Transaction) => tx.hash); // Filter out invalid transactions
+
+    const normalized = transactions
+      .map((tx: any) => normalizeSolanaTx(tx, chain, address))
+      .filter((tx: Transaction) => tx.hash);
+
+    return normalized;
   } catch (error) {
     console.error(`Error scanning ${chain.name}:`, error);
     throw error;
@@ -228,51 +197,10 @@ async function scanEvm(
   const tokenTransfers = await fetchPaged('tokentx');
   const nativeTransfers = normalizedTokenAddress ? [] : await fetchPaged('txlist');
   
-  const tokenMapped = tokenTransfers.map((tx: any) => {
-    const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
-    const decimals = parseInt(tx.tokenDecimal || '18', 10);
-    const amount = formatTokenAmount(tx.value || '0', decimals);
-    
-    const timestamp = parseInt(tx.timeStamp, 10);
-    return {
-      chain: chain.name,
-      hash: tx.hash,
-      timestamp,
-      date: formatDate(timestamp),
-      type: isIncoming ? 'in' : 'out',
-      from: tx.from,
-      to: tx.to,
-      amount,
-      tokenSymbol: tx.tokenSymbol || 'UNKNOWN',
-      tokenAddress: tx.contractAddress,
-      tokenDecimals: decimals,
-      blockNumber: tx.blockNumber
-    } as Transaction;
-  });
-  
-  const nativeMapped = nativeTransfers.map((tx: any) => {
-    const to = tx.to || '';
-    const isIncoming = to.toLowerCase() === address.toLowerCase();
-    const amount = formatTokenAmount(tx.value || '0', 18);
-    
-    const timestamp = parseInt(tx.timeStamp, 10);
-    return {
-      chain: chain.name,
-      hash: tx.hash,
-      timestamp,
-      date: formatDate(timestamp),
-      type: isIncoming ? 'in' : 'out',
-      from: tx.from,
-      to,
-      amount,
-      tokenSymbol: 'NATIVE',
-      tokenAddress: '',
-      tokenDecimals: 18,
-      blockNumber: tx.blockNumber
-    } as Transaction;
-  });
-  
-  return [...tokenMapped, ...nativeMapped];
+  const tokenMapped = tokenTransfers.map((tx: any) => normalizeEvmTx(tx, chain, address));
+  const nativeMapped = nativeTransfers.map((tx: any) => normalizeEvmTx(tx, chain, address));
+
+  return [...tokenMapped, ...nativeMapped].filter((tx: Transaction) => tx.hash);
 }
 
 export async function scanChain(

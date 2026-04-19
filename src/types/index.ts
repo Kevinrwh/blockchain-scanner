@@ -23,6 +23,11 @@ export interface Transaction {
   tokenAddress: string;
   tokenDecimals: number;
   blockNumber: string;
+  // Optional enhanced fields
+  valueNative?: string;
+  txType?: 'transfer' | 'swap' | 'contract' | 'internal' | 'unknown';
+  tokenName?: string;
+  decoded?: any;
 }
 
 export interface ChainScanStatus {
