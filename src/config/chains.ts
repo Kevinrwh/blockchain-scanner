@@ -13,17 +13,6 @@ export const CHAINS: Chain[] = [
     freeTierAvailable: true
   },
   {
-    id: 'bsc',
-    name: 'Binance Smart Chain',
-    apiUrl: 'https://api.etherscan.io/v2/api',
-    explorerUrl: 'https://bscscan.com',
-    logo: '🟡',
-    color: 'bg-yellow-500',
-    apiProvider: 'etherscan_v2',
-    evmChainId: 56,
-    freeTierAvailable: false
-  },
-  {
     id: 'polygon',
     name: 'Polygon',
     apiUrl: 'https://api.etherscan.io/v2/api',
@@ -46,17 +35,6 @@ export const CHAINS: Chain[] = [
     freeTierAvailable: true
   },
   {
-    id: 'optimism',
-    name: 'Optimism',
-    apiUrl: 'https://api.etherscan.io/v2/api',
-    explorerUrl: 'https://optimistic.etherscan.io',
-    logo: '🔴',
-    color: 'bg-red-500',
-    apiProvider: 'etherscan_v2',
-    evmChainId: 10,
-    freeTierAvailable: false
-  },
-  {
     id: 'base',
     name: 'Base',
     apiUrl: 'https://api.etherscan.io/v2/api',
@@ -76,6 +54,17 @@ export const CHAINS: Chain[] = [
     color: 'bg-sky-500',
     apiProvider: 'etherscan_v2',
     evmChainId: 43114,
+    freeTierAvailable: false
+  },
+  {
+    id: 'bsc',
+    name: 'BNB Smart Chain',
+    apiUrl: 'https://api.etherscan.io/v2/api',
+    explorerUrl: 'https://bscscan.com',
+    logo: '🟡',
+    color: 'bg-yellow-500',
+    apiProvider: 'etherscan_v2',
+    evmChainId: 56,
     freeTierAvailable: false
   },
   {

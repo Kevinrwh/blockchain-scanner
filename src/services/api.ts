@@ -1,6 +1,5 @@
 import type { Chain, Transaction } from '../types';
 import { getApiKey } from '../utils/storage';
-import { formatTokenAmount, formatDate } from '../utils/format';
 import { normalizeEvmTx, normalizeSolanaTx } from './normalize';
 
 interface ApiResponse {
@@ -233,28 +232,23 @@ export async function scanMultipleChains(
   tokenAddress?: string
 ): Promise<Map<string, ChainScanResult>> {
   const results = new Map<string, ChainScanResult>();
-  
-  const promises = chains.map(async (chain) => {
+
+  for (const chain of chains) {
     try {
       const transactions = await scanChain(chain, address, tokenAddress);
-      const result: ChainScanResult = {
-        chainId: chain.id,
-        transactions,
-        error: null
-      };
-      results.set(chain.id, result);
-      return result;
+      results.set(chain.id, { chainId: chain.id, transactions, error: null });
     } catch (error) {
-      const result: ChainScanResult = {
+      results.set(chain.id, {
         chainId: chain.id,
         transactions: [],
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
-      results.set(chain.id, result);
-      return result;
+      });
     }
-  });
-  
-  await Promise.all(promises);
+    // brief pause between chains to stay under free-tier rate limit (3 req/sec)
+    if (chains.indexOf(chain) < chains.length - 1) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+
   return results;
 }

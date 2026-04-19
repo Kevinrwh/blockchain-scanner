@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Transaction, ChainScanStatus } from './types';
 import { CHAINS, getChainById } from './config/chains';
-import { isValidEthereumAddress, isValidSolanaAddress, isValidAddress } from './utils/address';
+import { isValidEthereumAddress, isValidSolanaAddress } from './utils/address';
 import { scanMultipleChains } from './services/api';
 import { exportToCSV } from './utils/format';
 import { ChainSelector } from './components/ChainSelector';
@@ -9,20 +9,18 @@ import { ChainStatus } from './components/ChainStatus';
 import { TransactionTable } from './components/TransactionTable';
 import { Summary } from './components/Summary';
 import { ApiKeyManager } from './components/ApiKeyManager';
-import { LoadingSkeleton } from './components/LoadingSkeleton';
 
 function App() {
   const [walletAddress, setWalletAddress] = useState('');
   const [tokenAddress, setTokenAddress] = useState('');
   const [selectedChains, setSelectedChains] = useState<string[]>(
-    CHAINS.filter(c => c.id !== 'solana' && c.freeTierAvailable !== false).map(c => c.id)
+    CHAINS.filter(c => c.freeTierAvailable === true).map(c => c.id)
   );
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [scanStatuses, setScanStatuses] = useState<Map<string, ChainScanStatus>>(new Map());
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isApiKeyManagerOpen, setIsApiKeyManagerOpen] = useState(false);
-  const [skipPaidChains, setSkipPaidChains] = useState(true);
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('darkMode') === 'true' || 
            (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -38,8 +36,6 @@ function App() {
       chain: getChainById(status.chainId)?.name || status.chainId,
       error: status.error as string
     }));
-  
-  const paidTierChains = CHAINS.filter(chain => chain.freeTierAvailable === false);
   
   useEffect(() => {
     if (darkMode) {
@@ -66,12 +62,8 @@ function App() {
     
     // Validate address based on selected chains
     const chainsToScan = CHAINS.filter(c => selectedChains.includes(c.id));
-    const paidChainsSelected = chainsToScan.filter(c => c.freeTierAvailable === false);
-    const effectiveChainsToScan = skipPaidChains
-      ? chainsToScan.filter(c => c.freeTierAvailable !== false)
-      : chainsToScan;
-    const hasSolana = effectiveChainsToScan.some(c => c.id === 'solana');
-    const hasEVM = effectiveChainsToScan.some(c => c.id !== 'solana');
+    const hasSolana = chainsToScan.some(c => c.id === 'solana');
+    const hasEVM = chainsToScan.some(c => c.id !== 'solana');
     const isEvmAddress = isValidEthereumAddress(walletAddress);
     const isSolAddress = isValidSolanaAddress(walletAddress);
     
@@ -98,42 +90,26 @@ function App() {
     setTransactions([]);
     
     const statuses = new Map<string, ChainScanStatus>();
-    const compatibleChains = effectiveChainsToScan.filter(chain =>
+    const compatibleChains = chainsToScan.filter(chain =>
       chain.id === 'solana' ? isSolAddress : isEvmAddress
     );
     const incompatibleChains = chainsToScan.filter(chain =>
       chain.id === 'solana' ? !isSolAddress : !isEvmAddress
     );
-    const skippedPaidChains = skipPaidChains ? paidChainsSelected : [];
-    
+
     compatibleChains.forEach(chain => {
-      statuses.set(chain.id, {
-        chainId: chain.id,
-        status: 'scanning',
-        transactionCount: 0
-      });
+      statuses.set(chain.id, { chainId: chain.id, status: 'scanning', transactionCount: 0 });
     });
-    
+
     incompatibleChains.forEach(chain => {
       statuses.set(chain.id, {
         chainId: chain.id,
         status: 'error',
-        error: chain.id === 'solana'
-          ? 'Solana requires a Solana address'
-          : 'EVM chain requires a 0x address',
+        error: chain.id === 'solana' ? 'Solana requires a Solana address' : 'EVM chain requires a 0x address',
         transactionCount: 0
       });
     });
-    
-    skippedPaidChains.forEach(chain => {
-      statuses.set(chain.id, {
-        chainId: chain.id,
-        status: 'error',
-        error: 'Requires paid Etherscan tier',
-        transactionCount: 0
-      });
-    });
-    
+
     setScanStatuses(statuses);
     
     try {
@@ -230,21 +206,9 @@ function App() {
               onToggle={toggleChain}
             />
             
-            {paidTierChains.length > 0 && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-lg text-sm">
-                Free tier still requires a free Etherscan API key. Paid-tier chains require a paid plan: {paidTierChains.map(c => c.name).join(', ')}.
-              </div>
-            )}
-            
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input
-                type="checkbox"
-                checked={skipPaidChains}
-                onChange={(e) => setSkipPaidChains(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-              />
-              Skip paid-tier chains when scanning
-            </label>
+            <div className="p-3 bg-amber-50 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-lg text-sm">
+              An Etherscan API key is required. Add yours via the API Keys button above.
+            </div>
             
             {error && (
               <div className="p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-lg">

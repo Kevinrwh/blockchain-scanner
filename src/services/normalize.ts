@@ -106,7 +106,7 @@ export function normalizeSolanaTx(raw: any, chain: Chain, ownerAddress?: string)
   } as Transaction;
 }
 
-export function classifyTransaction(tx: Transaction, raw?: any): Transaction {
+export function classifyTransaction(tx: Transaction, _raw?: any): Transaction {
   // placeholder: classification is already set for EVM/Solana in normalizers
   return tx;
 }
