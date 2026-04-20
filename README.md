@@ -13,7 +13,6 @@ A client-side web app for scanning transaction history across EVM-compatible blo
 - **Summary cards** — total received and sent per chain across all results
 - **CSV export** — download all visible transactions as a CSV file
 - **API key manager** — enter and test API keys in-app; keys are stored in browser `localStorage` and never sent anywhere except the respective API
-- **Dark mode** — toggleable, defaults to dark, persists across sessions
 
 ## Supported Chains
 
